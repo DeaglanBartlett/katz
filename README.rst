@@ -31,13 +31,23 @@ To download and install the relevant code and dependencies in a new virtual envi
 	source katz_env/bin/activate
 	git clone git@github.com:DeaglanBartlett/ESR.git
 	pip install -e ESR
-	git clone git@github.com:DeaglanBartlett/katz/git
+	git clone git@github.com:DeaglanBartlett/katz.git
 	pip install -e katz
 
 Licence and Citation
 ====================
 
-Users are required to cite the Exhaustive Symbolic Regression `Paper <https://arxiv.org/abs/2211.11461>`_
+Users are  required to cite the katz paper
+
+.. code:: bibtex
+
+  @ARTICLE{Upcoming Paper,
+       author = {{Bartlett}, D.~J. and {Desmond}, H. and {Ferreira}, P.~G.},
+  }
+
+
+Since this depends on the ESR package, 
+users are required to cite the ESR `Paper <https://arxiv.org/abs/2211.11461>`_
 for which the following bibtex can be used
 
 .. code:: bibtex
