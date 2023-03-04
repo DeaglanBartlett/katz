@@ -41,7 +41,7 @@ Users are  required to cite the katz paper
 
 .. code:: bibtex
 
-  @ARTICLE{Upcoming Paper,
+  @ARTICLE{UpcomingPaper,
        author = {{Bartlett}, D.~J. and {Desmond}, H. and {Ferreira}, P.~G.},
   }
 
