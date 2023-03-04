@@ -53,9 +53,6 @@ def standardise_file(in_name, out_name):
             for i, s in enumerate(split_eq):
                 if s in to_change: split_eq[i] = sub_dict[s]
             eq = ''.join(split_eq)
-
-            if row['Number'] == 22:
-                print([row[f'v{i+1}_name'] for i in range(int(row['# variables']))])
                 
             all_eq.append(eq)
             
