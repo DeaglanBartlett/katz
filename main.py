@@ -60,7 +60,14 @@ elif example == 1:
         
 elif example == 2:
 
-    process_equations.standardise_file('data/FeynmanEquations.csv', 'data/NewFeynman.csv')
+    all_eq, maxvar = process_equations.standardise_file('data/FeynmanEquations.csv', 'data/NewFeynman.csv')
+    basis_functions = [["a"] + [f"x{i}" for i in range(maxvar)],  # type0
+                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],  # type1
+                ["+", "-", "*", "/", "pow"]]
+    coder = process_equations.SymbolCoder(basis_functions)
+    data = process_equations.process_all_equations(3, all_eq, maxvar, coder)
+    bo = BackOff(data)
+    print(bo.words)
     
 """
 TO DO
