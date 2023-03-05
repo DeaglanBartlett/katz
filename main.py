@@ -69,8 +69,3 @@ elif example == 2:
     for eq in ['x0**2', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))']:
         p = kp.logprior(eq)
         print(eq, p)
-    
-"""
-TO DO
-- Introduce k parameter for back_off
-"""

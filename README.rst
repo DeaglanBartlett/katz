@@ -124,4 +124,5 @@ TO DO
 * Make terminal node in tuples a sibling
 * Allow transition between smoothed S and actual S in good_turing
 * Deal with expected count if k = 0
+* Add k parameter for back off model
 
