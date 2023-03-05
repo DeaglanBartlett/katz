@@ -7,6 +7,17 @@ import itertools
 import esr.generation.generator as generator
 
 def split_by_punctuation(s):
+    """
+    Split a string s into a list, where each instance of punctuation or a space causes a split.
+    E.g. the string s = 'Hello, how are you?' becomes ['Hello', ',', ' ', 'how', ' ', 'are', ' ', 'you', '?']
+    
+    Args:
+        :s (str): String we wish to split
+        
+    Returns:
+        :split_str (list): List of strings split by punctuation
+        
+    """
     pun = string.punctuation.replace('_', '') # allow underscores in variable names
     pun = pun + ' '
     where_pun = [i for i in range(len(s)) if s[i] in pun]
@@ -21,6 +32,18 @@ def split_by_punctuation(s):
     
     
 def standardise_file(in_name, out_name):
+    """
+    Standardise the input equations used so that variables are named x0, x1, ..., x9
+    
+    Args:
+        :in_name (str): Name of file containing the equations to study
+        :out_name (str): Name of file to output the new equations to
+        
+    Returns:
+        :all_eq (list): List of equations as strings with the standardised variable names
+        :max_var (int): The maximum number of variables appearing in any of the equations
+    
+    """
 
     df = pd.read_csv(in_name)
     
@@ -68,6 +91,14 @@ def standardise_file(in_name, out_name):
 class SymbolCoder:
 
     def __init__(self, basis_functions):
+        """Class to encode equations as tuples of strings to be used by a back-off model
+        
+        Args:
+            :basis_functions (list): List of basis functions to consider. Entries 0, 1 and 2 are lists of nullary, unary, and binary operators, respectively.
+            
+        Returns:
+            SymbolCoder: A coder to encode equations
+        """
         self.basis_functions = basis_functions
         
         self.sympy_numerics = ['Number', 'Float', 'Rational', 'Integer', 'AlgebraicNumber',
@@ -82,6 +113,18 @@ class SymbolCoder:
         
         
     def equation2ntuples(self, n, eq, locs):
+        """
+        Convert an equation into n-tuples describing the tree structure of the function
+        
+        Args:
+            :n (int): The length of the n-tuples to produce
+            :eq (str): The equation to convert to an n-tuple
+            :locs (dict): dictionary of string:sympy objects describing variables
+            
+        Returns:
+            :ntuples (list); List of n-tuples which describe tree structure of function
+            
+        """
 
         expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs)
         lin = nodes.get_lineage()
@@ -105,6 +148,17 @@ class SymbolCoder:
         return ntuples
         
     def process_all_equations(self, n, all_eq, maxvar):
+        """
+        Turn all equations into n-tuples describing the tree structures of their functions
+        
+        Args:
+            :n (int): The length of the n-tuples to produce
+            :all_eq (list): List of equations as strings to convert to n-tuples
+            :maxvar (int): The maximum number of variables appearing in any of the equations
+            
+        Returns:
+            :ntuples (list): List of n-tuples which describe tree structures of the functions
+        """
 
         x = sympy.symbols([f'x{i}' for i in range(maxvar)], real=True)
         locs = {f'x{i}':x[i] for i in range(len(x))}
@@ -117,6 +171,15 @@ class SymbolCoder:
     
         
     def op2str(self, op):
+        """
+        Convert operator names defined by sympy into symbols used here
+        
+        Args:
+            :op (str): Operator name of sympy class
+        
+        Returns:
+            str: The equivalent symbol used here
+        """
         if op is None:
             return str(None)
         elif op in self.sympy_numerics:
@@ -134,4 +197,13 @@ class SymbolCoder:
         raise Exception("Unknown operator type:" + op)
         
     def op2codeword(self, op):
+        """
+        Convert an operator name as defined by sympy into the codeword assigned to it
+        
+        Args:
+            :op (str): Operator name of sympy class
+        
+        Returns:
+            str: The codeword used to represent this symbol
+        """
         return self.code[self.op2str(op)]

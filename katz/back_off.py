@@ -4,6 +4,15 @@ from .good_turing import GoodTuring
 class BackOff:
 
     def __init__(self, corpus):
+        """Class to create a Katz back-off model from a corpus of text and evaluate
+        the probability of a given tuple of words based on this corpus
+        
+        Args:
+            :corpus (list of tuples): Tuples of words which form the corpus
+            
+        Returns:
+            Backoff: Katz back-off model based on this corpus
+        """
     
         all_len = [len(s) for s in corpus]
         if len(set(all_len)) != 1:
@@ -24,11 +33,32 @@ class BackOff:
         self.words = list(sorted(set(self.words), key=self.words.index))
         
     def get_d(self, phrase):
+        """
+        Compute the amount of discounting found by Good-Turing estimation
+        
+        Args:
+            :phrase (tuple): Collection of words to find discounting for
+            
+        Returns:
+            :d (float): Good-Turing estimate for discounting
+            
+        """
         cstar = self.all_gt[len(phrase)].expected_count(phrase)
         c = self.all_gt[len(phrase)].actual_count(phrase)
         return cstar / c
         
     def sort_endings(self, phrase):
+        """
+        Find all ways of completing a phrase such that the new phrase appears
+        in the corpus
+        
+        Args:
+            :phrase (tuple): Collection of words to find valid completions to
+            
+        Returns:
+            :seen (list): List of words which can complete the phrase to produce a phrase found in the corpus
+            :unseen (list): List of words which, if appended to the phrase, produce a phrase NOT found in the corpus
+        """
         seen = []
         unseen = []
         for i, w in enumerate(self.words):
@@ -40,6 +70,16 @@ class BackOff:
         return seen, unseen
         
     def get_alpha(self, old_phrase):
+        """
+        Compute the back-off weight
+        
+        Args:
+            :old_phrase (tuple): The (n-1)-length tuple used to find the back-off weight for the n-length tuple
+            
+        Returns:
+            :alpha (float): The back-off weight
+            :beta (float): The left-over probability mass for the (n-1)-gram
+        """
         seen, unseen = self.sort_endings(old_phrase)
     
         beta = 0.
@@ -65,6 +105,17 @@ class BackOff:
         return alpha, beta
         
     def get_pbo(self, wnew, old_phrase):
+        """
+        Compute the probability for word wnew given the preceeding set of words old_phrase
+        
+        Args:
+            :wnew (str): The new word we wish to know the probability of obtaining
+            :old_phrase (tuple): The preceeding phrase
+            
+        Returns:
+            :pbo (float): The conditional probability P(wnew|old_phrase)
+        
+        """
     
         new_phrase = old_phrase + (wnew,)
         cnew = self.all_gt[len(new_phrase)].actual_count(new_phrase)
