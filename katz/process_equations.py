@@ -4,8 +4,6 @@ import string
 import csv
 import sympy
 import itertools
-from sympy.core.sympify import kernS
-
 import esr.generation.generator as generator
 
 def split_by_punctuation(s):
@@ -114,7 +112,6 @@ class SymbolCoder:
         ntuples = []
         for eq in all_eq:
             ntuples += self.equation2ntuples(n, eq, locs)
-        print(f'NUMBER OF {n}-TUPLES:', len(ntuples))
 
         return ntuples
     

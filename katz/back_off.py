@@ -73,13 +73,16 @@ class BackOff:
             cold = self.all_gt[len(old_phrase)].actual_count(old_phrase)
             pbo = d * cnew / cold
         elif len(old_phrase) > 1:
+            if self.all_gt[len(old_phrase)].actual_count(old_phrase) > 0:
+                alpha, beta = self.get_alpha(old_phrase)
+                pbo = alpha * self.get_pbo(wnew, old_phrase[1:])
+            else:
+                # If no data for (n-1)-gram, skip n-1 and use n-2
+                pbo = self.get_pbo(wnew, old_phrase[1:])
+        elif self.all_gt[len(old_phrase)].actual_count(old_phrase) > 0:
             alpha, beta = self.get_alpha(old_phrase)
-            pbo = alpha * self.get_pbo(wnew, old_phrase[1:])
-        elif self.all_gt[1].actual_count(old_phrase) > 0:
-            alpha, beta = self.get_alpha(old_phrase)
-            pbo = alpha * self.all_gt[1].actual_count((wnew,)) / len(self.all_gt[1].corpus)
+            pbo = alpha * self.all_gt[len(old_phrase)].actual_count((wnew,)) / len(self.all_gt[len(old_phrase)].corpus)
         else:
-            pbo = self.all_gt[1].actual_count((wnew,)) / len(self.all_gt[1].corpus)
+            pbo = self.all_gt[len(old_phrase)].actual_count((wnew,)) / len(self.all_gt[len(old_phrase)].corpus)
             
-    
         return pbo

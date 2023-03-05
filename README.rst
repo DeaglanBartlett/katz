@@ -34,6 +34,27 @@ To download and install the relevant code and dependencies in a new virtual envi
 	git clone git@github.com:DeaglanBartlett/katz.git
 	pip install -e katz
 
+
+Example
+========
+
+To generate a 2-gram prior from the `AI Feynman function set <https://space.mit.edu/home/tegmark/aifeynman.html>`_ 
+(`arXiv:1905.11481 <https://arxiv.org/abs/1905.11481>`_) and evaluate this on some trial function, run the following
+
+.. code-block:: python
+
+	from katz.prior import KatzPrior
+	
+	basis_functions = [["a", "x"],
+                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],  # type1
+                ["+", "-", "*", "/", "pow"]]
+    
+    	kp = KatzPrior(2, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
+    	for eq in ['x0**2', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))']:
+        	p = kp.logprior(eq)
+        	print(eq, p)
+
+
 Licence and Citation
 ====================
 
