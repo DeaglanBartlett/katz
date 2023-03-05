@@ -56,9 +56,3 @@ class GoodTuring:
         plt.tight_layout()
         plt.show()
         plt.clf()
-
-"""
-TO DO
-- Transition between smoothed S and actual S
-- Expected count if k = 0
-"""

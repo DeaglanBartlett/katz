@@ -65,7 +65,7 @@ elif example == 2:
                 ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],  # type1
                 ["+", "-", "*", "/", "pow"]]
     coder = process_equations.SymbolCoder(basis_functions)
-    data = process_equations.process_all_equations(3, all_eq, maxvar, coder)
+    data = coder.process_all_equations(3, all_eq, maxvar)
     bo = BackOff(data)
     print(bo.words)
     

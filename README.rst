@@ -22,7 +22,7 @@ function.
 Installation
 =============
 
-This repository depends on the ESR package to produce tree representations of equations.
+This repository depends on the `ESR Package <https://github.com/DeaglanBartlett/ESR>`_ to produce tree representations of equations.
 To download and install the relevant code and dependencies in a new virtual environment, run
 
 .. code:: bash
@@ -97,4 +97,13 @@ MAKE SOME DOCUMENTATION
 Acknowledgements
 ================
 DJB is supported by the Simons Collaboration on "Learning the Universe".
+
+TO DO
+================
+
+* Change Feynman equations to identify variables and constants as different?
+* Allow more than 10 input variables when processing equations
+* Make terminal node in tuples a sibling
+* Allow transition between smoothed S and actual S in good_turing
+* Deal with expected count if k = 0
 
