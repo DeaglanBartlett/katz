@@ -107,11 +107,6 @@ Below is a list of contributors to this repository.
 
 `Deaglan Bartlett <https://github.com/DeaglanBartlett>`_ (CNRS & Sorbonne Université, Institut d’Astrophysique de Paris)
 
-Examples
-========
-
-PUT AN EXAMPLE HERE
-
 Documentation
 =============
 
@@ -119,7 +114,7 @@ MAKE SOME DOCUMENTATION
 
 Acknowledgements
 ================
-DJB is supported by the Simons Collaboration on "Learning the Universe".
+DJB is supported by the Simons Collaboration on `Learning the Universe <https://www.learning-the-universe.org/>`_.
 
 TO DO
 ================
