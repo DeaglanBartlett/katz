@@ -62,7 +62,7 @@ elif example == 1:
 elif example == 2:
 
     basis_functions = [["a", "x"],
-                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],  # type1
+                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
                 ["+", "-", "*", "/", "pow"]]
     
     kp = KatzPrior(2, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
