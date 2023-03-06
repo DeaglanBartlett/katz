@@ -3,7 +3,6 @@ import numpy as np
 import string
 import csv
 import sympy
-import itertools
 import esr.generation.generator as generator
 
 def split_by_punctuation(s):
@@ -106,11 +105,9 @@ class SymbolCoder:
                     'One', 'NegativeOne', 'Half', 'NaN', 'Infinity', 'NegativeInfinity',
                     'ComplexInfinity', 'Exp1', 'ImaginaryUnit', 'Pi', 'EulerGamma',
                     'Catalan', 'GoldenRatio', 'TribonacciConstant', 'mod_inverse']
-        self.ops = [str(None), 'a', 'x'] + basis_functions[1] + basis_functions[2]
-        #self.code = [(t,) for t in self.ops] + list(itertools.product(self.ops, repeat=2)) # USE WHEN WE DO SIBLINGS
-        self.code = [t for t in self.ops]
+        self.ops = [str(None), 'a', 'x', 'y'] + basis_functions[1] + basis_functions[2]
+        self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
-        
         
     def equation2ntuples(self, n, eq, locs):
         """
@@ -127,23 +124,25 @@ class SymbolCoder:
         """
 
         expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs)
-        lin = nodes.get_lineage()
-        
-        # USE WHEN WE DO SIBLINGS
-        #lin = nodes.get_sibling_lineage()
-        #sib = nodes.get_siblings()
+        lin, val = nodes.get_sibling_lineage()
 
         ntuples = [None] * len(lin)
-        for i, t in enumerate(lin):
+        for i, (t, v) in enumerate(zip(lin, val)):
+        
+            # Get codeword of ancestors
             if len(t) >= n:
-                x = t[-n:]
+                x = t[-n:-1]
             else:
-                x = tuple([None]*(n-len(t)) + list(t))
-
-            ntuples[i] = tuple([self.op2codeword(tt) for tt in x])
-            #for i in range(n-1):
-            #    x[i] = (x[i],)
-            #x[-1] = (x[-1],)
+                x = tuple([None]*(n-len(t)) + list(t[:-1]))
+            nt = [self.op2codeword(tt) for tt in x]
+            # Deal with sibling at end of tree
+            sib = [self.op2str(tt) for tt in t[-1]]
+            if sib[0] == 'x' and sib[1] == 'x' and (v[-1][0] != v[-1][1]):
+                sib[1] = 'y'
+            ntuples[i] = tuple(nt + [self.code[s] for s in sib])
+            
+        # The parent node will not have been considered
+        ntuples = [tuple([self.code[str(None)]]*n + [ntuples[0][0]])] + ntuples
 
         return ntuples
         
@@ -161,7 +160,8 @@ class SymbolCoder:
         """
 
         x = sympy.symbols([f'x{i}' for i in range(maxvar)], real=True)
-        locs = {f'x{i}':x[i] for i in range(len(x))}
+        a = sympy.symbols([f'a{i}' for i in range(maxvar)], real=True)
+        locs = {f'x{i}':x[i] for i in range(len(x))} | {f'a{i}':a[i] for i in range(len(x))}
         
         ntuples = []
         for eq in all_eq:

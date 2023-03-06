@@ -119,9 +119,7 @@ DJB is supported by the Simons Collaboration on `Learning the Universe <https://
 TO DO
 ================
 
-* Change Feynman equations to identify variables and constants as different?
 * Allow more than 10 input variables when processing equations
-* Make terminal node in tuples a sibling
 * Allow transition between smoothed S and actual S in good_turing
 * Deal with expected count if k = 0
 * Add k parameter for back off model

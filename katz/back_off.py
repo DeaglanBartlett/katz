@@ -21,12 +21,17 @@ class BackOff:
         # Create the required GoodTuring Objects
         self.all_gt = [None] * (all_len[0]+1)
         for i in range(1, all_len[0]+1):
-            d = [s[:i] for s in corpus]
-            # Deal with edge effect
-            for j in range(all_len[0] - i):
-                d = d + [corpus[-1][j+1:i+j+1]]
-            
-            self.all_gt[i] = GoodTuring(d)
+#            d = [s[:i] for s in corpus]
+#            # Deal with edge effect
+#            for j in range(all_len[0] - i):
+#                d = d + [corpus[-1][j+1:i+j+1]]
+#            self.all_gt[i] = GoodTuring(d)
+            d = [s[-i:] for s in corpus]   # The final n terms of the tuples
+            d_start = [dd[:-1] for dd in d] # The first n-1 terms of the n-tuple
+            if i == 1:
+                self.all_gt[i] = [GoodTuring(d), None]
+            else:
+                self.all_gt[i] = [GoodTuring(d), GoodTuring(d_start)]
         
         # Find all unique words in the corpus
         self.words = list(sum(corpus, ()))
@@ -43,8 +48,8 @@ class BackOff:
             :d (float): Good-Turing estimate for discounting
             
         """
-        cstar = self.all_gt[len(phrase)].expected_count(phrase)
-        c = self.all_gt[len(phrase)].actual_count(phrase)
+        cstar = self.all_gt[len(phrase)][0].expected_count(phrase)
+        c = self.all_gt[len(phrase)][0].actual_count(phrase)
         return cstar / c
         
     def sort_endings(self, phrase):
@@ -62,7 +67,7 @@ class BackOff:
         seen = []
         unseen = []
         for i, w in enumerate(self.words):
-            if self.all_gt[len(phrase)+1].actual_count(phrase + (w,)) == 0:
+            if self.all_gt[len(phrase)+1][0].actual_count(phrase + (w,)) == 0:
                 unseen.append(w)
             else:
                 seen.append(w)
@@ -86,10 +91,9 @@ class BackOff:
         for w in seen:
             new_phrase = old_phrase + (w,)
             d = self.get_d(new_phrase)
-            cnew = self.all_gt[len(new_phrase)].actual_count(new_phrase)
+            cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase)
             beta += d * cnew
-            
-        cold = self.all_gt[len(old_phrase)].actual_count(old_phrase)
+        cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)  # [1] since want to see if old_phrase makes the start
         beta = 1 - beta / cold
         
         # Expect len(seen) < len(unseen)
@@ -99,7 +103,7 @@ class BackOff:
             if len(old_phrase) > 1:
                 alpha -= self.get_pbo(w, old_phrase[1:])
             else:
-                alpha -= self.all_gt[1].actual_count((w,)) / len(self.all_gt[1].corpus)
+                alpha -= self.all_gt[1][0].actual_count((w,)) / len(self.all_gt[1][0].corpus)
         alpha = beta / alpha
         
         return alpha, beta
@@ -118,22 +122,22 @@ class BackOff:
         """
     
         new_phrase = old_phrase + (wnew,)
-        cnew = self.all_gt[len(new_phrase)].actual_count(new_phrase)
+        cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase)
         if cnew > 0:
             d = self.get_d(new_phrase)
-            cold = self.all_gt[len(old_phrase)].actual_count(old_phrase)
+            cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)
             pbo = d * cnew / cold
         elif len(old_phrase) > 1:
-            if self.all_gt[len(old_phrase)].actual_count(old_phrase) > 0:
+            if self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0:  # old_phrase appears as the start somewhere
                 alpha, beta = self.get_alpha(old_phrase)
-                pbo = alpha * self.get_pbo(wnew, old_phrase[1:])
+                pbo = alpha * self.get_pbo(wnew, old_phrase[1:])  # Try tuple starting one later
             else:
                 # If no data for (n-1)-gram, skip n-1 and use n-2
                 pbo = self.get_pbo(wnew, old_phrase[1:])
-        elif self.all_gt[len(old_phrase)].actual_count(old_phrase) > 0:
+        elif self.all_gt[len(old_phrase)+1][1].actual_count(old_phrase) > 0:  # old_phrase appears as the start somewhere
             alpha, beta = self.get_alpha(old_phrase)
-            pbo = alpha * self.all_gt[len(old_phrase)].actual_count((wnew,)) / len(self.all_gt[len(old_phrase)].corpus)
+            pbo = alpha * self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
         else:
-            pbo = self.all_gt[len(old_phrase)].actual_count((wnew,)) / len(self.all_gt[len(old_phrase)].corpus)
+            pbo = self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
             
         return pbo
