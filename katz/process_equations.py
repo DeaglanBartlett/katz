@@ -108,6 +108,7 @@ class SymbolCoder:
         self.ops = [str(None), 'a', 'x', 'y'] + basis_functions[1] + basis_functions[2]
         self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
+        self.ignore_ops = ['Abs', 're']   # do not attempt to find probability of these operators
         
     def equation2ntuples(self, n, eq, locs):
         """
@@ -124,6 +125,19 @@ class SymbolCoder:
         """
 
         expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs)
+        
+        # Remove any operators we want to ignore ('Abs')
+        redo = False
+        for op in self.ignore_ops:
+            if op in eq:
+                redo = True
+        if redo:
+            s = str(expr)
+            s = split_by_punctuation(s)
+            s = [ss for ss in s if ss not in self.ignore_ops]
+            s = ''.join(s)
+            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs)
+        
         lin, val = nodes.get_sibling_lineage()
 
         ntuples = [None] * len(lin)
@@ -136,7 +150,10 @@ class SymbolCoder:
                 x = tuple([None]*(n-len(t)) + list(t[:-1]))
             nt = [self.op2codeword(tt) for tt in x]
             # Deal with sibling at end of tree
-            sib = [self.op2str(tt) for tt in t[-1]]
+            if isinstance(t[-1], tuple):
+                sib = [self.op2str(tt) for tt in t[-1]]
+            else:
+                sib = [self.op2str(tt) for tt in (t[-1], None)]
             if sib[0] == 'x' and sib[1] == 'x' and (v[-1][0] != v[-1][1]):
                 sib[1] = 'y'
             ntuples[i] = tuple(nt + [self.code[s] for s in sib])
