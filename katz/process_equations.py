@@ -124,7 +124,7 @@ class SymbolCoder:
             
         """
 
-        expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs)
+        expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs, evalf=True)
         
         # Remove any operators we want to ignore ('Abs')
         redo = False
@@ -136,7 +136,7 @@ class SymbolCoder:
             s = split_by_punctuation(s)
             s = [ss for ss in s if ss not in self.ignore_ops]
             s = ''.join(s)
-            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs)
+            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True)
         
         lin, val = nodes.get_sibling_lineage()
 
@@ -156,10 +156,15 @@ class SymbolCoder:
                 sib = [self.op2str(tt) for tt in (t[-1], None)]
             if sib[0] == 'x' and sib[1] == 'x' and (v[-1][0] != v[-1][1]):
                 sib[1] = 'y'
-            ntuples[i] = tuple(nt + [self.code[s] for s in sib])
+            tup = list(nt + [self.code[s] for s in sib])
+            
+            # Remove "None" at start of lineage
+            idx = [i for i in range(len(tup)) if tup[i] != self.code['None']]
+            tup = tuple(tup[idx[0]:])
+            ntuples[i] = tup
             
         # The parent node will not have been considered
-        ntuples = [tuple([self.code[str(None)]]*n + [ntuples[0][0]])] + ntuples
+        ntuples = [tuple([ntuples[0][0]])] + ntuples
 
         return ntuples
         

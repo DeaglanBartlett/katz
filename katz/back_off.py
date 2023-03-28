@@ -15,19 +15,23 @@ class BackOff:
         """
     
         all_len = [len(s) for s in corpus]
-        if len(set(all_len)) != 1:
-            raise Exception("Not all items in corpus have the same length")
          
         # Create the required GoodTuring Objects
-        self.all_gt = [None] * (all_len[0]+1)
-        for i in range(1, all_len[0]+1):
+        self.all_gt = [None] * (max(all_len)+1)
+        for i in range(1, max(all_len)+1):
 #            d = [s[:i] for s in corpus]
 #            # Deal with edge effect
 #            for j in range(all_len[0] - i):
 #                d = d + [corpus[-1][j+1:i+j+1]]
 #            self.all_gt[i] = GoodTuring(d)
-            d = [s[-i:] for s in corpus]   # The final n terms of the tuples
+            
+            d = [s[-i:] for s in corpus if len(s) >= i]   # The final n terms of the tuples
             d_start = [dd[:-1] for dd in d] # The first n-1 terms of the n-tuple
+
+            # These come in pairs to you can evaluate:
+            #       C(w_{i-n+1) ... w_i)        [first item]
+            #       C(w_{i-n+1) ... w_{i-1})    [second item]
+            # Each pair in list is for a different n
             if i == 1:
                 self.all_gt[i] = [GoodTuring(d), None]
             else:
@@ -48,8 +52,8 @@ class BackOff:
             :d (float): Good-Turing estimate for discounting
             
         """
-        cstar = self.all_gt[len(phrase)][0].expected_count(phrase)
-        c = self.all_gt[len(phrase)][0].actual_count(phrase)
+        cstar = self.all_gt[len(phrase)][0].expected_count(phrase)  # C^*(w_{i-n+1} ... w_i)
+        c = self.all_gt[len(phrase)][0].actual_count(phrase)        # C(w_{i-n+1} ... w_i)
         return cstar / c
         
     def sort_endings(self, phrase):
@@ -88,23 +92,22 @@ class BackOff:
         seen, unseen = self.sort_endings(old_phrase)
     
         beta = 0.
+        # Sum over w_i: C(w_{i-n+1} ... w_i) > 0 [i.e. seen]
         for w in seen:
             new_phrase = old_phrase + (w,)
-            d = self.get_d(new_phrase)
-            cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase)
+            d = self.get_d(new_phrase)      # d_{w_{i-n+1} ... w_i}
+            cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase) # C(w_{i-n+1} ... w_i)
             beta += d * cnew
-        cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)  # [1] since want to see if old_phrase makes the start
-        beta = 1 - beta / cold
+        cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)  # [1] since want to get  C(w_{i-n+1} ... w_{i-1})
+        beta = 1 - beta / cold  # beta_{w_{i-n+1} ... w_{i-1}}
         
         # Expect len(seen) < len(unseen)
         # Economical to only run len(seen) times and then use normalisation of probs
         alpha = 1.
+        # Sum over w_i: C(w_{i-n+1} ... w_i) > 0 [i.e. seen]
         for w in seen:
-            if len(old_phrase) > 1:
-                alpha -= self.get_pbo(w, old_phrase[1:])
-            else:
-                alpha -= self.all_gt[1][0].actual_count((w,)) / len(self.all_gt[1][0].corpus)
-        alpha = beta / alpha
+            alpha -= self.get_pbo(w, old_phrase[1:])       # Pbo(w_i | w_{i-n+2} ... w_{i-1})
+        alpha = beta / alpha    # alpha_{w_{i-n+1} ... w_{i-1}}
         
         return alpha, beta
         
@@ -122,21 +125,30 @@ class BackOff:
         """
     
         new_phrase = old_phrase + (wnew,)
-        cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase)
-        if cnew > 0:
-            d = self.get_d(new_phrase)
-            cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)
+        cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase) # C(w_{i-n+1} ... w_i)
+        
+        if len(old_phrase) == 0:
+            pbo = self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
+            
+        elif cnew > 0:
+            d = self.get_d(new_phrase)  # d_{w_{i-n+1} ... w_i}
+            cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)     # C(w_{i-n+1} ... w_{i-1})
             pbo = d * cnew / cold
-        elif len(old_phrase) > 1:
-            if self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0:  # old_phrase appears as the start somewhere
-                alpha, beta = self.get_alpha(old_phrase)
-                pbo = alpha * self.get_pbo(wnew, old_phrase[1:])  # Try tuple starting one later
+            
+        elif len(old_phrase) > 1: # Never saw new phrase, and old phrase has length > 1
+            if self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0:
+                # old_phrase appears as the start somewhere
+                alpha, beta = self.get_alpha(old_phrase)            # alpha_{w_{i-n+1} ... w_{i-1}}
+                pbo = alpha * self.get_pbo(wnew, old_phrase[1:])    # alpha_{w_{i-n+1} ... w_{i-1}} * Pbo(w_i | w_{i-n+2} ... w_{i-1})
             else:
                 # If no data for (n-1)-gram, skip n-1 and use n-2
-                pbo = self.get_pbo(wnew, old_phrase[1:])
-        elif self.all_gt[len(old_phrase)+1][1].actual_count(old_phrase) > 0:  # old_phrase appears as the start somewhere
-            alpha, beta = self.get_alpha(old_phrase)
-            pbo = alpha * self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
+                pbo = self.get_pbo(wnew, old_phrase[1:])            # Pbo(w_i | w_{i-n+2} ... w_{i-1})
+                
+        elif self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0:
+            # Never saw new phrase, but have an old phrase of length 1 which appears somehwere in corpus
+            alpha, beta = self.get_alpha(old_phrase)                # alpha_{w_{i-1}}
+            pbo = alpha * self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)   # alpha_{w_{i-1}} * Pbo(w_{i} | . )
+
         else:
             pbo = self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
             

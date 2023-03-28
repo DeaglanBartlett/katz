@@ -117,17 +117,17 @@ def main():
     basis_functions = [["a", "x"],
                 ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
                 ["+", "-", "*", "/", "pow"]]
-    in_eqfile = 'data/FeynmanEquations.csv'
-    out_eqfile = 'data/NewFeynman.csv'
+    in_eqfile = '../data/FeynmanEquations.csv'
+    out_eqfile = '../data/NewFeynman.csv'
     n = 2
 
-    dirname = '../ESR/esr/function_library/core_maths/'
-    for comp in range(1, 7):
-#    for comp in [7, 8]:
+    dirname = '../../ESR/esr/function_library/core_maths/'
+#    for comp in range(1, 7):
+    for comp in [7, 8]:
         if rank == 0:
             print('\nCOMPLEXITY:', comp, flush=True)
         get_logconst(comp, dirname)
-        compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile)
+        compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=False)
     
     
     return
