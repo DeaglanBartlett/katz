@@ -1,0 +1,196 @@
+sqrt(Abs(a0 + x))
+cos(sin(cos(x)))
+x/sqrt(Abs(a0))
+a0*sqrt(x)
+a0**2*x**2
+Abs(cos(a0))
+pow(Abs(a0),(x**2))
+a0 + cos(x)
+cos(a0)/x
+1
+sin(sqrt(Abs(cos(x))))
+-x**2 + x
+sin(cos(a0))**2
+sin(sin(cos(a0)))
+cos(sin(sqrt(x)))
+cos(pow(x,x))
+sin(a0 + a1)
+sin(sin(x)**2)
+sin(1)
+pow(x,sin(x))
+Abs(cos(x))
+cos(cos(sin(x)))
+cos(2*x)
+Abs(sin(x))
+cos(a0 + x)
+x**4
+x*sin(x)
+1/sqrt(x)
+sqrt(Abs(sin(sqrt(x))))
+a0*cos(x)
+sin(x**2)
+sqrt(Abs(sin(sin(x))))
+pow(Abs(cos(a0)),(1/4))
+pow(x,(2*x))
+cos(a0*x)
+cos(sqrt(Abs(sin(x))))
+cos(pow(Abs(a0),(1/4)))
+pow(x,cos(x))
+sin(a0/x)
+sin(cos(cos(x)))
+pow(Abs(a0),(x/2))
+pow(Abs(cos(x)),x)
+sin(cos(sin(x)))
+cos(cos(x))**2
+1/x
+x - sin(x)
+cos(1)
+cos(x)**4
+sqrt(Abs(cos(sqrt(x))))
+sqrt(x)*sqrt(Abs(a0))
+x**3
+a0/cos(x)
+a0/sqrt(Abs(a1))
+pow(x,(a0/2))
+sin(a0*x)
+cos(a0/x)
+sin(x)
+sin(sqrt(Abs(a0)))**2
+pow(Abs(sin(x)),x)
+sqrt(Abs(cos(cos(a0))))
+cos(pow(Abs(a0),x))
+pow(x,sin(a0))
+sin(cos(x)**2)
+cos(sin(x**2))
+sqrt(Abs(sin(cos(a0))))
+sin(2*x)
+cos(cos(sqrt(Abs(a0))))
+sin(sin(x))**2
+x/cos(x)
+pow(x,(3/2))
+a1 + sin(a0)
+a0 - cos(x)
+sin(sin(sin(x)))
+a0/cos(a1)
+cos(x)
+sqrt(x) - x
+sin(sin(cos(x)))
+pow(x,(x**2))
+sqrt(Abs(a0))
+cos(sin(x)**2)
+cos(a0**2)**2
+cos(sqrt(Abs(sin(a0))))
+x*cos(a0)
+x - sqrt(Abs(a0))
+a0 - sin(x)
+-x + sqrt(Abs(a0))
+x**8
+cos(sin(x))**2
+cos(sqrt(Abs(cos(x))))
+sqrt(Abs(sin(x**2)))
+pow(Abs(a0),(2*x))
+pow(Abs(a0),(1/8))
+cos(sqrt(x))**2
+sqrt(Abs(a0))/x
+x/sin(x)
+-x + sin(x)
+a0*sin(x)
+sin(sin(sqrt(Abs(a0))))
+sqrt(Abs(cos(x**2)))
+cos(x)/x
+a0/sin(x)
+a0 - x**2
+sqrt(x)
+x*sqrt(Abs(a0))
+x + cos(x)
+cos(a0)**4
+cos(cos(sqrt(x)))
+a0/sqrt(x)
+-sqrt(x) + x
+cos(cos(a0))**2
+sin(sqrt(Abs(cos(a0))))
+sin(cos(x))**2
+sin(sin(sqrt(x)))
+4*x**2
+cos(x**2)
+pow(x,(1/8))
+(a0 + x)**2
+pow(x,(sqrt(Abs(a0))))
+sin(x)/x
+sqrt(Abs(cos(sqrt(Abs(a0)))))
+a0 - cos(a1)
+pow(Abs(sin(x)),a0)
+cos(a0**4)
+a0 + x**2
+cos(cos(cos(x)))
+x + cos(a0)
+sqrt(x)*sqrt(Abs(1/a0))
+cos(sin(sin(a0)))
+x**2
+sin(sqrt(Abs(sin(x))))
+sqrt(Abs(sin(cos(x))))
+-x + cos(x)
+x**2 - x
+x/cos(a0)
+x + sin(x)
+pow(Abs(cos(a0)),x)
+sin(pow(x,a0))
+a0 + sqrt(Abs(a1))
+sqrt(2)*sqrt(x)
+sin(sqrt(x))**2
+pow(Abs(sin(a0)),a1)
+x
+sin(Abs(a0))
+sin(sin(a0)**2)
+cos(pow(x,(1/4)))
+sin(x)**4
+cos(x**4)
+cos(cos(cos(a0)))
+pow(x,(x/2))
+sqrt(Abs(a0))/sqrt(x)
+a0 + sin(x)
+sin(pow(x,x))
+-x + cos(a0)
+sqrt(Abs(cos(sin(x))))
+0
+cos(sin(sqrt(Abs(a0))))
+pow(Abs(a0),(sqrt(x)))
+a0/x**2
+sqrt(Abs(sin(sqrt(Abs(a0)))))
+sqrt(Abs(cos(cos(x))))
+sin(a0 + x)
+(a0 - x)**2
+x - cos(x)
+sin(x**2)**2
+pow(Abs(sin(x)),(1/4))
+pow(Abs(cos(x)),(1/4))
+pow(Abs(cos(x)),a0)
+sin(cos(sqrt(Abs(a0))))
+x**2 + x
+x*cos(x)
+pow(Abs(a0),sin(x))
+sin(sin(x**2))
+sin(cos(sqrt(x)))
+sin(cos(cos(a0)))
+cos(sin(sin(x)))
+a0*cos(a1)
+pow(x,(sqrt(x)))
+cos(sin(a0)**2)
+sin(pow(Abs(a0),(1/4)))
+cos(pow(x,a0))
+sin(pow(Abs(a0),x))
+sin(a0 - x)
+sin(pow(x,(1/4)))
+sqrt(x) + x
+a0*x**2
+pow(Abs(a0),cos(x))
+sin(x**4)
+a0 - sqrt(x)
+cos(x**2)**2
+pow(Abs(a0),sin(a1))
+x + sqrt(Abs(a0))
+a0 + sqrt(x)
+a0**2/x**2
+cos(cos(x**2))
+sin(cos(x**2))
+cos(cos(x)**2)

@@ -99,8 +99,9 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
         else:
             try:
                 logprior_proc[i] = kp.logprior(eq.strip())
-            except:
-                print("BAD EQ:", eq.strip())
+            except Exception as e:
+                print("BAD EQ:", eq.strip(), e)
+                logprior_proc[i] = np.nan
 
     logprior = comm.gather(logprior_proc, root=0)
     if rank == 0:
@@ -119,15 +120,15 @@ def main():
                 ["+", "-", "*", "/", "pow"]]
     in_eqfile = '../data/FeynmanEquations.csv'
     out_eqfile = '../data/NewFeynman.csv'
-    n = 2
+    n = 1
 
     dirname = '../../ESR/esr/function_library/core_maths/'
-#    for comp in range(1, 7):
-    for comp in [7, 8]:
+    #dirname = '../../ESR/esr/function_library/new_osc_maths/'
+    for comp in range(1, 9):
         if rank == 0:
             print('\nCOMPLEXITY:', comp, flush=True)
         get_logconst(comp, dirname)
-        compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=False)
+        compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=True)
     
     
     return

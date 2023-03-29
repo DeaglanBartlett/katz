@@ -108,7 +108,7 @@ class SymbolCoder:
         self.ops = [str(None), 'a', 'x', 'y'] + basis_functions[1] + basis_functions[2]
         self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
-        self.ignore_ops = ['Abs', 're']   # do not attempt to find probability of these operators
+        self.ignore_ops = ['Abs', 're', 'im']   # do not attempt to find probability of these operators
         
     def equation2ntuples(self, n, eq, locs):
         """
@@ -137,31 +137,38 @@ class SymbolCoder:
             s = [ss for ss in s if ss not in self.ignore_ops]
             s = ''.join(s)
             expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True)
-        
+
         lin, val = nodes.get_sibling_lineage()
 
-        ntuples = [None] * len(lin)
-        for i, (t, v) in enumerate(zip(lin, val)):
-        
+        ntuples = []
+        for t,v in zip(lin, val):
+
+            # Check for ignored operators
+            idx = [i for i,tt in enumerate(t) if tt not in self.ignore_ops]
+            tnew = [t[i] for i in idx]
+            vnew = [v[i] for i in idx]
+            if tnew[-1][0] in self.ignore_ops or tnew[-1][1] in self.ignore_ops:
+                continue
+
             # Get codeword of ancestors
-            if len(t) >= n:
-                x = t[-n:-1]
+            if len(tnew) >= n:
+                x = tnew[-n:-1]
             else:
-                x = tuple([None]*(n-len(t)) + list(t[:-1]))
+                x = tuple([None]*(n-len(tnew)) + list(tnew[:-1]))
             nt = [self.op2codeword(tt) for tt in x]
             # Deal with sibling at end of tree
             if isinstance(t[-1], tuple):
                 sib = [self.op2str(tt) for tt in t[-1]]
             else:
                 sib = [self.op2str(tt) for tt in (t[-1], None)]
-            if sib[0] == 'x' and sib[1] == 'x' and (v[-1][0] != v[-1][1]):
+            if sib[0] == 'x' and sib[1] == 'x' and (vnew[-1][0] != vnew[-1][1]):
                 sib[1] = 'y'
             tup = list(nt + [self.code[s] for s in sib])
             
             # Remove "None" at start of lineage
             idx = [i for i in range(len(tup)) if tup[i] != self.code['None']]
             tup = tuple(tup[idx[0]:])
-            ntuples[i] = tup
+            ntuples.append(tup)
             
         # The parent node will not have been considered
         ntuples = [tuple([ntuples[0][0]])] + ntuples
@@ -183,7 +190,10 @@ class SymbolCoder:
 
         x = sympy.symbols([f'x{i}' for i in range(maxvar)], real=True)
         a = sympy.symbols([f'a{i}' for i in range(maxvar)], real=True)
-        locs = {f'x{i}':x[i] for i in range(len(x))} | {f'a{i}':a[i] for i in range(len(x))}
+        #locs = {f'x{i}':x[i] for i in range(len(x))} | {f'a{i}':a[i] for i in range(len(x))}
+        d1 = {f'x{i}':x[i] for i in range(len(x))}
+        d2 = {f'a{i}':a[i] for i in range(len(x))}
+        locs = {**d1, **d2}
         
         ntuples = []
         for eq in all_eq:
