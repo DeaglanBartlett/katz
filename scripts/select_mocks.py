@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import csv
-
+import matplotlib.pyplot as plt
 
 def process_fun(name, true_eq, nx, frac_sigx, all_compl, imax, all_new_z):
 
@@ -73,11 +73,50 @@ def process_fun(name, true_eq, nx, frac_sigx, all_compl, imax, all_new_z):
     logL = res[:,2]
     functional = res[:,4]
 
-    def get_delta_DL(new_nz):
-        DL = (new_nz / nx) * logL + p/2 * np.log(new_nz / nx) + res[:,4] + res[:,3]
-        m = np.argsort(DL, kind='stable')
-        f0, f1 = fun[m[0]], fun[m[1]]
-        DL0, DL1 = DL[m[:2]]
+    def get_delta_DL(new_nz, method=1):
+        
+        if method == 1:
+            # Max likelihood
+            DL = (new_nz / nx) * logL
+            
+            m = np.argsort(DL, kind='stable')
+            f0, f1 = fun[m[0]], fun[m[1]]
+            DL0, DL1 = DL[m[:2]]
+            
+        elif method == 2:
+            # Max dlogL / dc
+            
+            DL = np.empty(len(all_compl))
+            new_fun = [None] * len(all_compl)
+            for i,c in enumerate(all_compl):
+                m = store_comp==c
+                idx = np.arange(len(logL))[m]
+                ll = (new_nz / nx) * logL[m]
+                DL[i] = np.amin(ll)
+                new_fun[i] = fun[idx[np.argmin(ll)]]
+            DL = DL[1:] -- DL[:-1]
+            new_fun = new_fun[1:]
+            
+            m = np.argsort(DL, kind='stable')
+            print(m[0], m[1])
+            f0, f1 = new_fun[m[0]], new_fun[m[1]]
+            DL0, DL1 = DL[m[:2]]
+            
+        elif method == 3:
+            # Prescription of Bartlett et al. 2022
+            DL = (new_nz / nx) * logL + p/2 * np.log(new_nz / nx) + res[:,4] + res[:,3]
+            
+            m = np.argsort(DL, kind='stable')
+            f0, f1 = fun[m[0]], fun[m[1]]
+            DL0, DL1 = DL[m[:2]]
+            
+        elif method == 4:
+            pass
+        elif method == 5:
+            pass
+        elif method == 6:
+            pass
+
         if f0 == true_eq:
             toptwo = True
             DL = DL1 - DL0
@@ -92,19 +131,30 @@ def process_fun(name, true_eq, nx, frac_sigx, all_compl, imax, all_new_z):
 
     all_DL = np.empty(len(all_new_z))
     all_toptwo = np.zeros(len(all_new_z), dtype=bool)
-    for i, new_nz in enumerate(all_new_z):
-        all_toptwo[i], all_DL[i] = get_delta_DL(new_nz)
-        print('%.1f'%new_nz, all_toptwo[i], '%.2f'%all_DL[i])
+    for i, new_nz in enumerate(all_new_z[-2:]):
+        all_toptwo[i], all_DL[i] = get_delta_DL(new_nz, method=2)
+        print('%.1f'%new_nz, all_toptwo[i], '%.2e'%all_DL[i])
+        quit()
+       
+    fig, ax = plt.subplots()
+    ax.semilogx(all_new_z, all_DL, marker='.')
+    ax.axhline(y=0, color='k')
+    ax.set_xlabel('Number of data points')
+    ax.set_ylabel('Preference for truth')
+    ax.set_title(name + ': ' + true_eq + ', frac_sigx = ' + str(frac_sigx))
+    plt.show()
 
     return
 
 
 nx = 10000
 frac_sigx = 0.5
-name = 'nguyen_8'; true_eq = 'sqrt(x)'
+#name = 'nguyen_8'; true_eq = 'sqrt(x)'
+name = 'korns_4'; true_eq = 'a0 + a1*sin(x)'
 all_new_z = np.logspace(0, 3, 10)
 all_compl = np.arange(1, 7)
-imax = 1000
+#imax = 1000
+imax = -1
 
 process_fun(name, true_eq, nx, frac_sigx, all_compl, imax, all_new_z)
 

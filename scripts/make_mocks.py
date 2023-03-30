@@ -58,7 +58,7 @@ benchmarks = {
         'keijzer_1':['0.3 * x * sin( 2 * pi * x)', [-1, 1]]
 }
 
-for n in ['nguyen_8']:
+for n in ['korns_4']:
 
     make_data(n,
             *benchmarks[n],

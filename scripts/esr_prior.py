@@ -122,9 +122,9 @@ def main():
     out_eqfile = '../data/NewFeynman.csv'
     n = 1
 
-    dirname = '../../ESR/esr/function_library/core_maths/'
-    #dirname = '../../ESR/esr/function_library/new_osc_maths/'
-    for comp in range(1, 9):
+    #dirname = '../../ESR/esr/function_library/core_maths/'
+    dirname = '../../ESR/esr/function_library/new_osc_maths/'
+    for comp in range(1, 7):
         if rank == 0:
             print('\nCOMPLEXITY:', comp, flush=True)
         get_logconst(comp, dirname)

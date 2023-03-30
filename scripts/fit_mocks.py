@@ -135,7 +135,8 @@ tmax = 5
 
 nx = 10000
 frac_sigx = 0.5
-name = 'nguyen_8'
+#name = 'nguyen_8'
+name = 'korns_4'
 likelihood = MockLikelihood(name, nx, frac_sigx)
 
 print_text('test_all')
