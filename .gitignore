@@ -131,3 +131,6 @@ dmypy.json
 *.DS_Store
 *.out
 .bashrc
+figs/
+scripts/output/
+data/
