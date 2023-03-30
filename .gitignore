@@ -134,3 +134,4 @@ dmypy.json
 figs/
 scripts/output/
 data/
+*.sh.sh
