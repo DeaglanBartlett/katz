@@ -398,10 +398,7 @@ def get_split_idx(L):
 
 def process_data(dirname, final_prefix, all_comp):
     """
-    Convert results of all optimisations into a list of functions,
-    where we attempt to keep only the highest ranked of any duplicate
-    equation. This will not catch all duplicates, so the user must
-    check for them.
+    Convert results of all optimisations into a list of functions.
     
     Args:
         :dirname (str): Directory name containing the optimisation results
@@ -422,7 +419,6 @@ def process_data(dirname, final_prefix, all_comp):
     params = []
     store_comp = []
 
-    # (1) Load the data
     for i, compl in enumerate(all_comp):
         fname = dirname + final_prefix + '%i.dat'%compl
         if os.path.isfile(fname):
@@ -437,28 +433,41 @@ def process_data(dirname, final_prefix, all_comp):
     res = np.array(res, dtype=float)
     params = np.array(params, dtype=float)
     store_comp = np.array(store_comp, dtype=int)
+    
+    return fun, res, params, store_comp
+    
+    
+def remove_duplicates_and_sort(fun, loss, like):
+    """
+    Attempt to keep only the highest ranked of any duplicate equation.
+    This will not catch all duplicates, so the user must check for them.
+    
+    Args:
+        :fun (list[str]): The list of functions
+        :loss (np.ndarray): The loss function to sort by
+        :like (np.ndarray): The negative log-likelihood values
+        
+    Returns:
+        :fun (list[str]): The processed list of functions
+        :loss (np.ndarray): The sorted loss functions
+        :like (np.ndarray): The log-likelihoods of the sorted functions
+    
+    """
 
-    # (2) Remove low-ranked functions and sort data
-    imax = res.shape[0]   # MAYBE WANT TO CHANGE THIS
-    m = np.argsort(res[:,0], kind='stable')
-    res = res[m,:]
-    params = params[m,:]
-    store_comp = store_comp[m]
+    # (1) Sort data by loss functions
+    m = np.argsort(loss, kind='stable')
+    loss = loss[m]
+    like = like[m]
     fun = [fun[i] for i in m]
-    res = res[:imax,:]
-    params = params[:imax,:]
-    store_comp = store_comp[:imax]
-    fun = fun[:imax]
 
-    # (3) Remove duplicates by likelihood
-    _, uniq_idx = np.unique(res[:,2], return_index=True)
+    # (2) Remove duplicates by likelihood
+    _, uniq_idx = np.unique(like, return_index=True)
     uniq_idx = np.sort(uniq_idx)
     fun = [fun[i] for i in uniq_idx]
-    res = res[uniq_idx,:]
-    store_comp = store_comp[uniq_idx]
-    params = params[uniq_idx,:]
+    loss = loss[uniq_idx]
+    like = like[uniq_idx]
 
-    # (4) Remove duplicates by name
+    # (3) Remove duplicates by name
     new_fun = []
     uniq_idx = []
     for i in range(len(fun)):
@@ -466,11 +475,53 @@ def process_data(dirname, final_prefix, all_comp):
             uniq_idx.append(i)
             new_fun.append(fun[i])
     fun = new_fun
-    res = res[uniq_idx,:]
-    params = params[uniq_idx,:]
-    store_comp = store_comp[uniq_idx]
+    loss = loss[uniq_idx]
+    like = like[uniq_idx]
     
-    return fun, res, params, store_comp
+    return fun, loss, like
+    
+    
+def get_top_eqs(fun, loss, nkeep, all_true_eq=None):
+    """
+    Rank functions by their loss and keep up to nkeep of these
+    
+    Args:
+        :fun (list[str]): The list of functions
+        :loss (np.ndarray): The loss function to sort by
+        :nkeep (int): The maximum number of the top equations to keep
+        :all_true_eq (list[str]): List of variants of the true equation to find
+        
+    Returns:
+        :m_fun (list[str]): The strings of the top functions
+        :m_loss (np.ndarray): The loss functions of the top functions
+        :m_ftrue (float): The true equation used
+        :m_ltrue (str): The loss function of the truth
+    
+    """
+
+    m = np.argsort(loss, kind='stable')
+    m_fun = [None] * nkeep
+    m_loss = np.ones(nkeep) * np.nan
+    
+    for i in range(min(nkeep, len(m))):
+        m_fun[i] = fun[m[i]]
+        m_loss[i] = loss[m[i]]
+        
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
+        
+    if len(idx) == 0:
+        m_ltrue = np.nan
+        m_ftrue = None
+    else:
+        all_m_ltrue = np.array([loss[i] for i in idx])
+        m_ltrue = np.amin(all_m1_ltrue)
+        idx = idx[np.argmin(all_m_ltrue)]
+        m_ftrue = fun[idx]
+
+    return m_fun, m_loss, m_ftrue, m_ltrue
 
 
 def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp):
@@ -516,33 +567,15 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
 
     nkeep = 10
 
-    # Get data from MDL a la Bartlett et al. 2022
-    fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
-
     # METHOD 1: Max likelihood
-    m = np.argsort(res[:,2], kind='stable')
-    m1_f0, m1_f1, m1_f2 = fun[m[0]], fun[m[1]], fun[m[2]]
-    m1_fun = [None] * nkeep
-    m1_loss = np.ones(nkeep) * np.nan
-    for i in range(min(nkeep, len(m))):
-        m1_fun[i] = fun[m[i]]
-        m1_loss[i] = res[m[i],2]
-    if all_true_eq is None:
-        idx = []
-    else:
-        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
-    if len(idx) == 0:
-        m1_ltrue = np.nan
-        m1_ftrue = None
-    else:
-        all_m1_ltrue = np.array([res[i,2] for i in idx])
-        m1_ltrue = np.amin(all_m1_ltrue)
-        idx = idx[np.argmin(all_m1_ltrue)]
-        m1_ftrue = fun[idx]
+    fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
+    fun, loss, like = remove_duplicates_and_sort(fun, res[:,2], res[:,2])
+    m1_fun, m1_loss, m1_ftrue, m1_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m1_ftrue not in m1_fun[:2]:
-        print('\nMethod 1', dirname, [fun[mm] for mm in m[:4]])
+        print('\nMethod 1', dirname, m1_fun[:min(len(m1_fun),4)])
 
     # METHOD 2: Max dL/dc (a la PySR)
+    fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
     new_fun = [None] * len(all_comp)
     loss = np.zeros(len(all_comp))
     for i, c in enumerate(all_comp):
@@ -553,130 +586,51 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
         new_fun[i] = fun[idx[np.argmin(ll)]]
     loss = (loss[1:] - loss[:-1]) / (all_comp[1:] - all_comp[:-1])
     new_fun = new_fun[1:]
-    m = np.argsort(loss)
-    m2_fun = [None] * nkeep
-    m2_loss = np.ones(nkeep) * np.nan
-    for i in range(min(nkeep, len(m))):
-        m2_fun[i] = new_fun[m[i]]
-        m2_loss[i] = loss[m[i]]
-    if all_true_eq is None:
-        idx = []
-    else:
-        idx = [new_fun.index(true_eq) for true_eq in all_true_eq if true_eq in new_fun]
-    if len(idx) == 0:
-        m2_ltrue = np.nan
-        m2_ftrue = None
-    else:
-        all_m2_ltrue = np.array([loss[i] for i in idx])
-        m2_ltrue = np.amin(all_m2_ltrue)
-        idx = idx[np.argmin(all_m2_ltrue)]
-        m2_ftrue = new_fun[idx]
+    m2_fun, m2_loss, m2_ftrue, m2_ltrue = get_top_eqs(new_fun, loss, nkeep, all_true_eq=all_true_eq)
     if m2_ftrue not in m2_fun[:2]:
-        print('\nMethod 2', dirname, [new_fun[mm] for mm in m[:4]])
+        print('\nMethod 2', dirname, m2_fun[:min(len(m2_fun),4)])
 
     # METHOD 3: MDL (a la Bartlett et al. 2022)
-    m = np.argsort(res[:,0], kind='stable')
-    m3_fun = [None] * nkeep
-    m3_loss = np.ones(nkeep) * np.nan
-    for i in range(min(nkeep, len(m))):
-        m3_fun[i] = fun[m[i]]
-        m3_loss[i] = res[m[i],0]
-    if all_true_eq is None:
-        idx = []
-    else:
-        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
-    if len(idx) == 0:
-        m3_ltrue = np.nan
-        m3_ftrue = None
-    else:
-        all_m3_ltrue = np.array([res[i,0] for i in idx])
-        m3_ltrue = np.amin(all_m3_ltrue)
-        idx = idx[np.argmin(all_m3_ltrue)]
-        m3_ftrue = fun[idx]
+    fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
+    fun, loss, like = remove_duplicates_and_sort(fun, res[:,0], res[:,2])
+    m3_fun, m3_loss, m3_ftrue, m3_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m3_ftrue not in m3_fun[:2]:
-        print('\nMethod 3', dirname, [fun[mm] for mm in m[:4]])
-
-    # Now get language model data including the constant terms
+        print('\nMethod 3', dirname, m3_fun[:min(len(m3_fun),4)])
+        
+    # METHOD 4: MDL with language model prior
     fun, res, params, store_comp = process_data(dirname, 'final_katz_2_', all_comp)
+    fun, loss, like = remove_duplicates_and_sort(fun, res[:,0], res[:,2])
+    m4_fun, m4_loss, m4_ftrue, m4_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    if m4_ftrue not in m4_fun[:2]:
+        print('\nMethod 4', dirname, m3_fun[:min(len(m3_fun),4)])
+        
+    # Terms for FBF prior
     b = 1 / np.sqrt(nx)
     m = params!=0
     p = np.sum(m, axis=1)
     nup = np.exp(1 - np.log(3))
-
-    # METHOD 4: MDL with language model prior 
-    m = np.argsort(res[:,0], kind='stable')
-    m4_fun = [None] * nkeep
-    m4_loss = np.ones(nkeep) * np.nan
-    for i in range(min(nkeep, len(m))):
-        m4_fun[i] = fun[m[i]]
-        m4_loss[i] = res[m[i],0]
-    if all_true_eq is None:
-        idx = []
-    else:
-        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
-    if len(idx) == 0:
-        m4_ltrue = np.nan
-        m4_ftrue = None
-    else:
-        all_m4_ltrue = np.array([res[i,0] for i in idx])
-        m4_ltrue = np.amin(all_m4_ltrue)
-        idx = idx[np.argmin(all_m4_ltrue)]
-        m4_ftrue = fun[idx]
-    if m4_ftrue not in m4_fun[:2]:
-        print('\nMethod 4', dirname, [fun[mm] for mm in m[:4]])
-
+        
     # METHOD 5: MDL with FBF and Language Model Prior
+    fun, res, params, store_comp = process_data(dirname, 'final_katz_2_', all_comp)
     loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
-    m = np.argsort(loss, kind='stable')
-    m5_fun = [None] * nkeep
-    m5_loss = np.ones(nkeep) * np.nan
-    for i in range(min(nkeep, len(m))):
-        m5_fun[i] = fun[m[i]]
-        m5_loss[i] = loss[m[i]]
-    if all_true_eq is None:
-        idx = []
-    else:
-        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
-    if len(idx) == 0:
-        m5_ltrue = np.nan
-        m5_ftrue = None
-    else:
-        all_m5_ltrue = np.array([loss[i] for i in idx])
-        m5_ltrue = np.amin(all_m5_ltrue)
-        idx = idx[np.argmin(all_m5_ltrue)]
-        m5_ftrue = fun[idx]
+    fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2])
+    m5_fun, m5_loss, m5_ftrue, m5_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m5_ftrue not in m5_fun[:2]:
-        print('\nMethod 5', dirname, [fun[mm] for mm in m[:4]])
-
-    # Now get language model data excluding the constant temrs
-    fun, res, params, store_comp = process_data(dirname, 'final_noconst_katz_2_', all_comp)
+        print('\nMethod 5', dirname, m5_fun[:min(len(m5_fun),4)])
+        
+    # Terms for FBF prior
     b = 1 / np.sqrt(nx)
     m = params!=0
     p = np.sum(m, axis=1)
     nup = np.exp(1 - np.log(3))
 
     # METHOD 6: Evidence with FBF and Language Model Priors
+    fun, res, params, store_comp = process_data(dirname, 'final_noconst_katz_2_', all_comp)
     loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
-    m = np.argsort(loss, kind='stable')
-    m6_fun = [None] * nkeep
-    m6_loss = np.ones(nkeep) * np.nan
-    for i in range(min(nkeep, len(m))):
-        m6_fun[i] = fun[m[i]]
-        m6_loss[i] = loss[m[i]]
-    for mm in m[:10]:
-        print(fun[mm], loss[mm])
-    if all_true_eq is None:
-        idx = []
-    else:
-        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
-    if len(idx) == 0:
-        m6_ltrue = np.nan
-        m6_ftrue = None
-    else:
-        all_m6_ltrue = np.array([loss[i] for i in idx])
-        m6_ltrue = np.amin(all_m6_ltrue)
-        idx = idx[np.argmin(all_m6_ltrue)]
-        m6_ftrue = fun[idx]
+    fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2])
+    m6_fun, m6_loss, m6_ftrue, m6_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    if m6_ftrue not in m6_fun[:2]:
+        print('\nMethod 6', dirname, m6_fun[:min(len(m6_fun),4)])
 
     # PRINT RESULTS TO FILE
     with open(dirname + '/selection_summary.csv', "w") as f:
