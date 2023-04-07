@@ -121,7 +121,7 @@ def get_logconst(comp, dirname, overwrite=False):
     
     return
     
-def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=False):
+def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=False, input_delimiter=','):
     """
     Compute the log of the function prior for all functions at a give complexity
     given a corpus of equations. Saves results to two files: katz_logprior_{n}_{comp}.txt
@@ -136,6 +136,7 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
         :in_eqfile (str): Name of file containing the equations to use as corpus
         :out_eqfile (str): Name of file to output standardised corpus equations to
         :overwrite (bool): Whether to overwrite files if they already exist
+        :input_delimiter (str): The delimiter used in the input csv file
         
     Returns:
         :None
@@ -150,7 +151,7 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
 
     fcn_list_proc, _, _ = get_functions(comp, dirname)
 
-    kp = KatzPrior(n, basis_functions, in_eqfile, out_eqfile)
+    kp = KatzPrior(n, basis_functions, in_eqfile, out_eqfile, input_delimiter=input_delimiter)
     logprior_proc = np.empty(len(fcn_list_proc))
     
     for i, eq in enumerate(fcn_list_proc):
@@ -179,24 +180,25 @@ def main():
     """
 
     basis_functions = [["a", "x"],
-                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
+                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh"],
                 ["+", "-", "*", "/", "pow"]]
 #    in_eqfile = '../data/FeynmanEquations.csv'
 #    out_eqfile = '../data/NewFeynman.csv'
     in_eqfile = '../data/PhysicsEquations.csv'
     out_eqfile = '../data/NewPhysics.csv'
+    input_delimiter = ';'
     n = 3
 
-    dirname = '../../ESR/esr/function_library/core_maths/'
-    #dirname = '../../ESR/esr/function_library/new_osc_maths/'
-    #for comp in range(1, 8):
-    comp = 10
-    #for comp in [8]:
-    for n in [1, 2, 3]:
-        if rank == 0:
-            print('\nCOMPLEXITY:', comp, flush=True)
-        get_logconst(comp, dirname)
-        compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=True)
+    #dirname = '../../ESR/esr/function_library/core_maths/'
+    dirname = '../../ESR/esr/function_library/new_osc_maths/'
+    #for comp in range(1, 7):
+    #comp = 10
+    for comp in [7, 8]:
+        for n in [1, 2, 3]:
+            if rank == 0:
+                print('\nCOMPLEXITY:', comp, flush=True)
+            get_logconst(comp, dirname)
+            compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=True, input_delimiter=input_delimiter)
     
     
     return

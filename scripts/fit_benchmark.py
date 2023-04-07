@@ -517,7 +517,7 @@ def get_top_eqs(fun, loss, nkeep, all_true_eq=None):
         m_ftrue = None
     else:
         all_m_ltrue = np.array([loss[i] for i in idx])
-        m_ltrue = np.amin(all_m1_ltrue)
+        m_ltrue = np.amin(all_m_ltrue)
         idx = idx[np.argmin(all_m_ltrue)]
         m_ftrue = fun[idx]
 
@@ -606,12 +606,12 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
         
     # Terms for FBF prior
     b = 1 / np.sqrt(nx)
-    m = params!=0
-    p = np.sum(m, axis=1)
     nup = np.exp(1 - np.log(3))
         
     # METHOD 5: MDL with FBF and Language Model Prior
     fun, res, params, store_comp = process_data(dirname, 'final_katz_2_', all_comp)
+    m = params!=0
+    p = np.sum(m, axis=1)
     loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
     fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2])
     m5_fun, m5_loss, m5_ftrue, m5_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
@@ -620,13 +620,12 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
         
     # Terms for FBF prior
     b = 1 / np.sqrt(nx)
-    m = params!=0
-    p = np.sum(m, axis=1)
-    nup = np.exp(1 - np.log(3))
 
     # METHOD 6: Evidence with FBF and Language Model Priors
     fun, res, params, store_comp = process_data(dirname, 'final_noconst_katz_2_', all_comp)
-    loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
+    m = params!=0
+    p = np.sum(m, axis=1)
+    loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] 
     fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2])
     m6_fun, m6_loss, m6_ftrue, m6_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m6_ftrue not in m6_fun[:2]:
@@ -682,13 +681,13 @@ def main():
 
 
     all_N = [10, 30, 100, 300, 1000, 3000, 10000]
-    #all_N = [100]
+    #all_N = [10]
     all_sigx = [0.5]
     nsamp = 5
-    #all_name = ['korns_4']
+    all_name = ['korns_4']
     #all_name = ['nguyen_8', 'korns_1', 'korns_6', 'korns_7']
     #all_name = ['korns_6', 'korns_7']
-    all_name = ['korns_7']
+    #all_name = ['korns_7']
     all_comp = np.arange(1, 8)
     
     do_make_mocks = False

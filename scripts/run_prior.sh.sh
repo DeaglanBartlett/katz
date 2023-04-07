@@ -1,6 +1,6 @@
 #!/bin/bash -l
 echo =========================================================   
-echo Job submitted  date = Sun Apr  2 10:37:43 BST 2023      
+echo Job submitted  date = Fri Apr  7 15:37:24 BST 2023      
 date_start=`date +%s`
 echo $SLURM_JOB_NUM_NODES nodes \( $SMP processes per node \)        
 echo $SLURM_JOB_NUM_NODES hosts used: $SLURM_JOB_NODELIST      
@@ -17,7 +17,7 @@ export MV2_SMP_USE_CMA=0
 
 #which mpirun
 export OMP_NUM_THREADS=24
- /usr/local/shared/slurm/bin/srun -u -N 6 --mpi=pmi2 --mem-per-cpu=7168 --ntasks-per-node=24 nice -n 10 /mnt/zfsusers/deaglan/symbolic_regression/function_prior/katz/scripts/./run_prior.sh 
+ /usr/local/shared/slurm/bin/srun -u -N 5 --mpi=pmi2 --mem-per-cpu=7168 --ntasks-per-node=24 nice -n 10 /mnt/zfsusers/deaglan/symbolic_regression/function_prior/katz/scripts/./run_prior.sh 
 # If we've been checkpointed
 #if [ -n "${DMTCP_CHECKPOINT_DIR}" ]; then
   if [ -d "${DMTCP_CHECKPOINT_DIR}" ]; then

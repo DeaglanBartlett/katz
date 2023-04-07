@@ -136,3 +136,5 @@ scripts/output/
 data/korns*
 data/nguyen*
 *.sh.sh
+scripts/copy_script.py
+*.sh.sh
