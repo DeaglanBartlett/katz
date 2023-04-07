@@ -118,8 +118,10 @@ def main():
     basis_functions = [["a", "x"],
                 ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
                 ["+", "-", "*", "/", "pow"]]
-    in_eqfile = '../data/FeynmanEquations.csv'
-    out_eqfile = '../data/NewFeynman.csv'
+#    in_eqfile = '../data/FeynmanEquations.csv'
+#    out_eqfile = '../data/NewFeynman.csv'
+    in_eqfile = '../data/PhysicsEquations.csv'
+    out_eqfile = '../data/NewPhysics.csv'
     n = 3
 
     dirname = '../../ESR/esr/function_library/core_maths/'

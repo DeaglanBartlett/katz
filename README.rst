@@ -29,7 +29,7 @@ To download and install the relevant code and dependencies in a new virtual envi
 
 	python3 -m venv katz_env
 	source katz_env/bin/activate
-	git clone git@github.com:DeaglanBartlett/ESR.git
+	git clone --branch katz git@github.com:DeaglanBartlett/ESR.git
 	pip install -e ESR
 	git clone git@github.com:DeaglanBartlett/katz.git
 	pip install -e katz

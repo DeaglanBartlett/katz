@@ -62,11 +62,12 @@ elif example == 1:
 elif example == 2:
 
     basis_functions = [["a", "x"],
-                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
+                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh"],
                 ["+", "-", "*", "/", "pow"]]
     
-    kp = KatzPrior(2, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
-    for eq in ['x0**2', 'x0**3', 'x0*x1', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))', 'pow(x0, a0)', 'pow(a0, x0)', 'pow(x0, x0)', 
+#    kp = KatzPrior(2, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv', input_delimiter=',')
+    kp = KatzPrior(2, basis_functions, 'data/PhysicsEquations.csv', 'data/NewPhysics.csv', input_delimiter=';')
+    for eq in ['x0**2', 'x0**3', 'x0*x1', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))', 'pow(x0, a0)', 'pow(a0, x0)', 'pow(x0, x0)', 'sqrt(x)',
             'a0 + a1*sin(x)', 'a0 - sin(x)*cos(a1)', 'a0 - pow(Abs(cos(a1)),sin(x))', 'pow(Abs(cos(a0)),sin(x))/a1', '(a0 + sin(x))**2/a1']:
         p = kp.logprior(eq)
         print(eq, p)

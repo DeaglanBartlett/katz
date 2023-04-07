@@ -30,13 +30,14 @@ def split_by_punctuation(s):
     return split_str
     
     
-def standardise_file(in_name, out_name):
+def standardise_file(in_name, out_name, input_delimiter):
     """
     Standardise the input equations used so that variables are named x0, x1, ..., x9
     
     Args:
         :in_name (str): Name of file containing the equations to study
         :out_name (str): Name of file to output the new equations to
+        :input_delimiter (str): The delimiter used in the input csv file
         
     Returns:
         :all_eq (list): List of equations as strings with the standardised variable names
@@ -44,11 +45,8 @@ def standardise_file(in_name, out_name):
     
     """
 
-    df = pd.read_csv(in_name)
-    
+    df = pd.read_csv(in_name, delimiter=input_delimiter)
     maxvar = int(df['# variables'].max())
-    if maxvar > 10:
-        raise NotImplementedError(f"Cannot have more than 10 input variables: you have {maxvar}")
         
     all_eq = []
     
@@ -61,13 +59,13 @@ def standardise_file(in_name, out_name):
         
             if not np.isfinite(row['# variables']):
                 continue
-            eq = row['Formula']
+            eq = row['Formula'].replace(" ", "")
             
             # If equation already has variable 'x{i}" then we don't need to replace it
             # Note: At least Eqs I.18.12, I.18.14 and II.37.1 in AIFeynman has wrong number of vars
             # The next two lines fix this
             vars = [row[f'v{i+1}_name'] for i in range(maxvar)]
-            vars = [v for v in vars if isinstance(v, str)]
+            vars = [v.replace(" ", "") for v in vars if isinstance(v, str)]
                 
             names = [f'x{i}' for i in range(len(vars))]
             to_change = list(sorted(set(vars) - set(names), key=vars.index))
@@ -191,7 +189,6 @@ class SymbolCoder:
 
         x = sympy.symbols([f'x{i}' for i in range(maxvar)], real=True)
         a = sympy.symbols([f'a{i}' for i in range(maxvar)], real=True)
-        #locs = {f'x{i}':x[i] for i in range(len(x))} | {f'a{i}':a[i] for i in range(len(x))}
         d1 = {f'x{i}':x[i] for i in range(len(x))}
         d2 = {f'a{i}':a[i] for i in range(len(x))}
         locs = {**d1, **d2}

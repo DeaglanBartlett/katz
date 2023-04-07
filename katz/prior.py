@@ -4,7 +4,7 @@ from .process_equations import standardise_file, SymbolCoder
 
 class KatzPrior:
 
-    def __init__(self, n, basis_functions, in_eqfile, out_eqfile):
+    def __init__(self, n, basis_functions, in_eqfile, out_eqfile, input_delimiter=','):
         """Class to evaluate the probability of a function based on an n-gram Katz back-off model
         
         Args:
@@ -12,6 +12,7 @@ class KatzPrior:
             :basis_functions (list): List of basis functions to consider. Entries 0, 1 and 2 are lists of nullary, unary, and binary operators, respectively.
             :in_eqfile (str): Name of file containing the equations to study
             :out_eqfile (str): Name of file to output the standardised equations to
+            :input_delimiter (str): The delimiter used in the input csv file
             
         Returns:
             KatzPrior: Prior model to find prior of a function given a previous set of equations
@@ -19,7 +20,7 @@ class KatzPrior:
         """
     
         self.n = n
-        self.all_eq, self.maxvar = standardise_file(in_eqfile, out_eqfile)
+        self.all_eq, self.maxvar = standardise_file(in_eqfile, out_eqfile, input_delimiter)
         self.basis_functions = [list(set(basis_functions[0] + ["a"] + [f"x{i}" for i in range(self.maxvar)])),  # type0
                                 basis_functions[1],  # type1
                                 basis_functions[2]]  # type2
