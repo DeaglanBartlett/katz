@@ -217,6 +217,58 @@ def fit_mocks(name, nx, frac_sigx, samp_num, comp, tmax=5):
     return
 
 
+def _apply_language_prior(name, nx, frac_sigx, samp_num, comp, tmax=5):
+    likelihood = MockLikelihood(name, nx, frac_sigx, samp_num)
+    apply_language_prior(likelihood, comp, tmax=tmax)
+    return
+
+def apply_language_prior(likelihood, comp, tmax=5):
+
+    fnprior_prefix = likelihood.fnprior_prefix
+    combineDL_prefix = likelihood.combineDL_prefix
+    final_prefix = likelihood.final_prefix
+    fig_dir = likelihood.fig_dir
+
+    # INCLUDE LOG(CONST) TERMS
+
+    likelihood.fnprior_prefix = f"katz_codelen_2_"
+    likelihood.combineDL_prefix = "combine_DL_katz_2_"
+    likelihood.final_prefix = "final_katz_2_"
+    likelihood.fig_dir += "_katz_2"
+
+    print_text('combine_DL language model (with const)')
+    combine_DL.main(comp, likelihood)
+    comm.Barrier()
+
+    print_text('plot language model')
+    if rank == 0:
+        plot.main(comp, likelihood, tmax=tmax)
+
+    # NO LOG(CONST) TERMS
+
+    likelihood.fnprior_prefix = f"katz_logprior_2_"
+    likelihood.combineDL_prefix = "combine_DL_noconst_katz_2_"
+    likelihood.final_prefix = "final_noconst_katz_2_"
+    likelihood.fig_dir += "_noconst_katz_2"
+
+    print_text('combine_DL language model (no const)')
+    combine_DL.main(comp, likelihood)
+    comm.Barrier()
+
+    print_text('plot language model')
+    if rank == 0:
+        plot.main(comp, likelihood, tmax=tmax)
+
+    # Restore file names
+
+    likelihood.fig_dir = fig_dir
+    likelihood.fnprior_prefix = fnprior_prefix
+    likelihood.combineDL_prefix = combineDL_prefix
+    likelihood.final_prefix = final_prefix
+
+    return
+
+
 def get_split_idx(L):
 
     if rank==0:
@@ -242,22 +294,16 @@ def get_split_idx(L):
     return data_start, data_end
 
 
-def process_fit(name, nx, frac_sigx, samp_num, all_comp):
-    """
-    Currently this deals with methods which do not involve the function prior
-    """
-
-    # (1) Load the data
-    fname = f'{name}_{nx}_{frac_sigx}_{samp_num}'
-    dirname = f'output/output_{fname}/'
-    print(dirname)
+def process_data(dirname, final_prefix, all_comp):
 
     res = []
     fun = []
     params = []
     store_comp = []
+
+    # (1) Load the data
     for i, compl in enumerate(all_comp):
-        fname = dirname + 'final_%i.dat'%compl
+        fname = dirname + final_prefix + '%i.dat'%compl
         if os.path.isfile(fname):
             with open(fname, "r") as f:
                 reader = csv.reader(f, delimiter=';')
@@ -269,10 +315,10 @@ def process_fit(name, nx, frac_sigx, samp_num, all_comp):
                 store_comp += [compl] * len(data)
     res = np.array(res, dtype=float)
     params = np.array(params, dtype=float)
-    store_comp = np.array(store_comp, dtype=int) 
+    store_comp = np.array(store_comp, dtype=int)
 
     # (2) Remove low-ranked functions and sort data
-    imax = -1   # MAYBE WANT TO CHANGE THIS
+    imax = res.shape[0]   # MAYBE WANT TO CHANGE THIS
     m = np.argsort(res[:,0], kind='stable')
     res = res[m,:]
     params = params[m,:]
@@ -302,11 +348,48 @@ def process_fit(name, nx, frac_sigx, samp_num, all_comp):
     res = res[uniq_idx,:]
     params = params[uniq_idx,:]
     store_comp = store_comp[uniq_idx]
+    
+    return fun, res, params, store_comp
+
+
+def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp):
+    """
+    Currently this deals with methods which do not involve the function prior
+    """
+    fname = f'{name}_{nx}_{frac_sigx}_{samp_num}'
+    dirname = f'output/output_{fname}/'
+    return process_fit(dirname, all_comp, nx, all_true_eq)
+
+
+def process_fit(dirname, all_comp, nx, all_true_eq=None):
+
+    nkeep = 10
+
+    # Get data from MDL a la Bartlett et al. 2022
+    fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
 
     # METHOD 1: Max likelihood
     m = np.argsort(res[:,2], kind='stable')
-    m1_f0, m1_f1 = fun[m[0]], fun[m[1]]
-    m1_l0, m1_l1 = res[m[:2],2]
+    m1_f0, m1_f1, m1_f2 = fun[m[0]], fun[m[1]], fun[m[2]]
+    m1_fun = [None] * nkeep
+    m1_loss = np.ones(nkeep) * np.nan
+    for i in range(min(nkeep, len(m))):
+        m1_fun[i] = fun[m[i]]
+        m1_loss[i] = res[m[i],2]
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
+    if len(idx) == 0:
+        m1_ltrue = np.nan
+        m1_ftrue = None
+    else:
+        all_m1_ltrue = np.array([res[i,2] for i in idx])
+        m1_ltrue = np.amin(all_m1_ltrue)
+        idx = idx[np.argmin(all_m1_ltrue)]
+        m1_ftrue = fun[idx]
+    if m1_ftrue not in m1_fun[:2]:
+        print('\nMethod 1', dirname, [fun[mm] for mm in m[:4]])
 
     # METHOD 2: Max dL/dc (a la PySR)
     new_fun = [None] * len(all_comp)
@@ -320,21 +403,149 @@ def process_fit(name, nx, frac_sigx, samp_num, all_comp):
     loss = (loss[1:] - loss[:-1]) / (all_comp[1:] - all_comp[:-1])
     new_fun = new_fun[1:]
     m = np.argsort(loss)
-    m2_f0, m2_f1 = new_fun[m[0]], new_fun[m[1]]
-    m2_l0, m2_l1 = res[m[:2],2]
+    m2_fun = [None] * nkeep
+    m2_loss = np.ones(nkeep) * np.nan
+    for i in range(min(nkeep, len(m))):
+        m2_fun[i] = new_fun[m[i]]
+        m2_loss[i] = loss[m[i]]
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [new_fun.index(true_eq) for true_eq in all_true_eq if true_eq in new_fun]
+    if len(idx) == 0:
+        m2_ltrue = np.nan
+        m2_ftrue = None
+    else:
+        all_m2_ltrue = np.array([loss[i] for i in idx])
+        m2_ltrue = np.amin(all_m2_ltrue)
+        idx = idx[np.argmin(all_m2_ltrue)]
+        m2_ftrue = new_fun[idx]
+    if m2_ftrue not in m2_fun[:2]:
+        print('\nMethod 2', dirname, [new_fun[mm] for mm in m[:4]])
 
     # METHOD 3: MDL (a la Bartlett et al. 2022)
     m = np.argsort(res[:,0], kind='stable')
-    m3_f0, m3_f1 = fun[m[0]], fun[m[1]]
-    m3_l0, m3_l1 = res[m[:2],0]
+    m3_fun = [None] * nkeep
+    m3_loss = np.ones(nkeep) * np.nan
+    for i in range(min(nkeep, len(m))):
+        m3_fun[i] = fun[m[i]]
+        m3_loss[i] = res[m[i],0]
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
+    if len(idx) == 0:
+        m3_ltrue = np.nan
+        m3_ftrue = None
+    else:
+        all_m3_ltrue = np.array([res[i,0] for i in idx])
+        m3_ltrue = np.amin(all_m3_ltrue)
+        idx = idx[np.argmin(all_m3_ltrue)]
+        m3_ftrue = fun[idx]
+    if m3_ftrue not in m3_fun[:2]:
+        print('\nMethod 3', dirname, [fun[mm] for mm in m[:4]])
+
+    # Now get language model data including the constant terms
+    fun, res, params, store_comp = process_data(dirname, 'final_katz_2_', all_comp)
+    b = 1 / np.sqrt(nx)
+    m = params!=0
+    p = np.sum(m, axis=1)
+    nup = np.exp(1 - np.log(3))
+
+    # METHOD 4: MDL with language model prior 
+    m = np.argsort(res[:,0], kind='stable')
+    m4_fun = [None] * nkeep
+    m4_loss = np.ones(nkeep) * np.nan
+    for i in range(min(nkeep, len(m))):
+        m4_fun[i] = fun[m[i]]
+        m4_loss[i] = res[m[i],0]
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
+    if len(idx) == 0:
+        m4_ltrue = np.nan
+        m4_ftrue = None
+    else:
+        all_m4_ltrue = np.array([res[i,0] for i in idx])
+        m4_ltrue = np.amin(all_m4_ltrue)
+        idx = idx[np.argmin(all_m4_ltrue)]
+        m4_ftrue = fun[idx]
+    if m4_ftrue not in m4_fun[:2]:
+        print('\nMethod 4', dirname, [fun[mm] for mm in m[:4]])
+
+    # METHOD 5: MDL with FBF and Language Model Prior
+    loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
+    m = np.argsort(loss, kind='stable')
+    m5_fun = [None] * nkeep
+    m5_loss = np.ones(nkeep) * np.nan
+    for i in range(min(nkeep, len(m))):
+        m5_fun[i] = fun[m[i]]
+        m5_loss[i] = loss[m[i]]
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
+    if len(idx) == 0:
+        m5_ltrue = np.nan
+        m5_ftrue = None
+    else:
+        all_m5_ltrue = np.array([loss[i] for i in idx])
+        m5_ltrue = np.amin(all_m5_ltrue)
+        idx = idx[np.argmin(all_m5_ltrue)]
+        m5_ftrue = fun[idx]
+    if m5_ftrue not in m5_fun[:2]:
+        print('\nMethod 5', dirname, [fun[mm] for mm in m[:4]])
+
+    # Now get language model data excluding the constant temrs
+    fun, res, params, store_comp = process_data(dirname, 'final_noconst_katz_2_', all_comp)
+    b = 1 / np.sqrt(nx)
+    m = params!=0
+    p = np.sum(m, axis=1)
+    nup = np.exp(1 - np.log(3))
+
+    # METHOD 6: Evidence with FBF and Language Model Priors
+    loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
+    m = np.argsort(loss, kind='stable')
+    m6_fun = [None] * nkeep
+    m6_loss = np.ones(nkeep) * np.nan
+    for i in range(min(nkeep, len(m))):
+        m6_fun[i] = fun[m[i]]
+        m6_loss[i] = loss[m[i]]
+    for mm in m[:10]:
+        print(fun[mm], loss[mm])
+    if all_true_eq is None:
+        idx = []
+    else:
+        idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
+    if len(idx) == 0:
+        m6_ltrue = np.nan
+        m6_ftrue = None
+    else:
+        all_m6_ltrue = np.array([loss[i] for i in idx])
+        m6_ltrue = np.amin(all_m6_ltrue)
+        idx = idx[np.argmin(all_m6_ltrue)]
+        m6_ftrue = fun[idx]
 
     # PRINT RESULTS TO FILE
     with open(dirname + '/selection_summary.csv', "w") as f:
         writer = csv.writer(f, delimiter=';')
-        writer.writerow(['Method', 'f0', 'loss0', 'f1', 'loss1'])
-        writer.writerow([1, m1_f0, m1_l0, m1_f1, m1_l1])
-        writer.writerow([2, m2_f0, m2_l0, m2_f1, m2_l1])
-        writer.writerow([3, m3_f0, m3_l0, m3_f1, m3_l1])
+        if all_true_eq is None:
+            writer.writerow(['Method'] + ['f%i'%i for i in range(nkeep)] + ['loss%i'%i for i in range(nkeep)])
+            writer.writerow([1] + m1_fun + list(m1_loss))
+            writer.writerow([2] + m2_fun + list(m2_loss))
+            writer.writerow([3] + m3_fun + list(m3_loss))
+            writer.writerow([4] + m4_fun + list(m4_loss))
+            writer.writerow([5] + m5_fun + list(m5_loss))
+            writer.writerow([6] + m6_fun + list(m6_loss))
+        else:
+            writer.writerow(['Method'] + ['f%i'%i for i in range(nkeep)] + ['loss%i'%i for i in range(nkeep)] + ['ftrue', 'losstrue'])
+            writer.writerow([1] + m1_fun + list(m1_loss) + [m1_ftrue, m1_ltrue])
+            writer.writerow([2] + m2_fun + list(m2_loss) + [m2_ftrue, m2_ltrue])
+            writer.writerow([3] + m3_fun + list(m3_loss) + [m3_ftrue, m3_ltrue])
+            writer.writerow([4] + m4_fun + list(m4_loss) + [m4_ftrue, m4_ltrue])
+            writer.writerow([5] + m5_fun + list(m5_loss) + [m5_ftrue, m5_ltrue])
+            writer.writerow([6] + m6_fun + list(m6_loss) + [m6_ftrue, m6_ltrue])
 
     return
 
@@ -350,16 +561,31 @@ def main():
         'korns_7':['213.80940889 * (1 - exp(-0.54723748542 * x))', [0, 50]],
         'korns_11':['6.87 + 11 * cos(2.73 * x^3)',[0, 50]],
         'keijzer_1':['0.3 * x * sin( 2 * pi * x)', [-1, 1]]
-        }
-    #all_N = [10, 30, 100, 300, 1000]
-    all_N = [10]
+    }
+    all_true_eq = {
+        'nguyen_8': ['sqrt(x)'],
+        'korns_1': ['a0 + a1*x', 'a0 + x/a1', 'a0*(-a1 + x)', 'a0*(a1 - x)', 'a0*(a1 + x)', 
+                    '(-a0 + x)/pow(Abs(a1),(1/4))'],
+        'korns_4': ['a0 + a1*sin(x)', 'a0 - sin(x)*cos(a1)', 'a0 + sin(x)*cos(a1)'],
+        'korns_6': ['a0 + a1*sqrt(x)', 'a0 + sqrt(x)*sqrt(Abs(a1))', 'a0*(a1 - sqrt(x))'],
+        'korns_7': ['a0 - pow(Abs(a1),x)', 'a0 + pow(Abs(a1),x)/a2', 'a0 + a1/pow(Abs(a2),x)', 'a0*(a1 - pow(Abs(a2),x))',
+                    'a0 + a1*pow(Abs(a2),x)']
+    }
+
+
+    all_N = [10, 30, 100, 300, 1000, 3000, 10000]
+    #all_N = [100]
     all_sigx = [0.5]
     nsamp = 5
-    all_name = ['korns_4']
+    #all_name = ['korns_4']
+    #all_name = ['nguyen_8', 'korns_1', 'korns_6', 'korns_7']
+    #all_name = ['korns_6', 'korns_7']
+    all_name = ['korns_7']
     all_comp = np.arange(1, 8)
     
     do_make_mocks = False
     do_fit_mocks = False
+    do_language_model = False
     do_process_mocks = True
 
     # All possible N-samp combinations
@@ -373,6 +599,7 @@ def main():
         print_text(name)
 
         f, x_range = benchmarks[name]
+        true_eq = all_true_eq[name]
 
         for frac_sigx in all_sigx:
 
@@ -388,14 +615,21 @@ def main():
             if do_fit_mocks:
                 for nx, samp_num in combo:
                     for comp in all_comp:
-                        print_text(f'STARTING {name}, {frac_sigx}, {nx}, {samp_num}, {comp}')
+                        print_text(f'FITTING {name}, {frac_sigx}, {nx}, {samp_num}, {comp}')
                         fit_mocks(name, nx, frac_sigx, samp_num, comp)
+
+            # Apply language model
+            if do_language_model:
+                for nx, samp_num in combo:
+                    for comp in all_comp:
+                        print_text(f'LANGUAGE {name}, {frac_sigx}, {nx}, {samp_num}, {comp}')
+                        _apply_language_prior(name, nx, frac_sigx, samp_num, comp)
 
             # Process mocks:
             if do_process_mocks:
                 print_text(f'PROCESSING RESULTS {name}, {frac_sigx}')
                 for nx, samp_num in combo[data_start:data_end]:
-                    process_fit(name, nx, frac_sigx, samp_num, all_comp)
+                    _process_fit(name, true_eq, nx, frac_sigx, samp_num, all_comp)
 
     return
 

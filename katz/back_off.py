@@ -151,5 +151,5 @@ class BackOff:
 
         else:
             pbo = self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
-            
+
         return pbo

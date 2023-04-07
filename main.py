@@ -66,6 +66,7 @@ elif example == 2:
                 ["+", "-", "*", "/", "pow"]]
     
     kp = KatzPrior(2, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
-    for eq in ['x0**2', 'x0**3', 'x0*x1', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))', 'pow(x0, a0)', 'pow(a0, x0)', 'pow(x0, x0)']:
+    for eq in ['x0**2', 'x0**3', 'x0*x1', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))', 'pow(x0, a0)', 'pow(a0, x0)', 'pow(x0, x0)', 
+            'a0 + a1*sin(x)', 'a0 - sin(x)*cos(a1)', 'a0 - pow(Abs(cos(a1)),sin(x))', 'pow(Abs(cos(a0)),sin(x))/a1', '(a0 + sin(x))**2/a1']:
         p = kp.logprior(eq)
         print(eq, p)

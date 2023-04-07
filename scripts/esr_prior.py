@@ -106,7 +106,7 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
     logprior = comm.gather(logprior_proc, root=0)
     if rank == 0:
         logprior = np.array(list(itertools.chain(*logprior)))
-        np.savetxt(outname_prior, logprior)
+        np.savetxt(outname_prior,  - logprior)
         logconst = np.loadtxt(dirname + f'/compl_{comp}/logconst_{comp}.txt')
         np.savetxt(outname_code, - logprior + logconst)# will use as replacement to aifeyn term, so need to sum these
 
@@ -120,11 +120,14 @@ def main():
                 ["+", "-", "*", "/", "pow"]]
     in_eqfile = '../data/FeynmanEquations.csv'
     out_eqfile = '../data/NewFeynman.csv'
-    n = 1
+    n = 3
 
-    #dirname = '../../ESR/esr/function_library/core_maths/'
-    dirname = '../../ESR/esr/function_library/new_osc_maths/'
-    for comp in range(1, 7):
+    dirname = '../../ESR/esr/function_library/core_maths/'
+    #dirname = '../../ESR/esr/function_library/new_osc_maths/'
+    #for comp in range(1, 8):
+    comp = 10
+    #for comp in [8]:
+    for n in [1, 2, 3]:
         if rank == 0:
             print('\nCOMPLEXITY:', comp, flush=True)
         get_logconst(comp, dirname)

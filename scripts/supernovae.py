@@ -1,68 +1,54 @@
-import esr.fitting.combine_DL
 from esr.fitting.likelihood import PanthLikelihood
-import os
-from prettytable import PrettyTable
-import csv
 import numpy as np
+import pandas as pd
 from mpi4py import MPI
+import sympy
+
+from fit_benchmark import apply_language_prior, process_fit
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-def print_results(fname, nrow):
-
-    with open(fname, "r") as f:
-        reader = csv.reader(f, delimiter=';')
-        data = [row for row in reader]
-
-        res = [d[2:7] for d in data]
-        fun = [d[1] for d in data]
-        params = [d[7:] for d in data]
-        store_comp = [compl] * len(data)
-        
-    res = np.array(res, dtype=float)
-    params = np.array(params, dtype=float)
-    store_comp = np.array(store_comp, dtype=int)
-        
-    # Sort by DL
-    m = np.argsort(res[:,0], kind='stable')
-    res = res[m,:]
-    params = params[m,:]
-    store_comp = store_comp[m]
-    fun = [fun[i] for i in m]
-
-    ptab = PrettyTable()
-    ptab.field_names = ["Rank", "Function", "Complexity", "Res", "Fun", "Param", "DL", "a0", "a1", "a2"]
-    for i in range(nrow):
-        ptab.add_row([i+1, fun[i], store_comp[i], '%.2f'%res[i,2], '%.2f'%res[i,4], '%.2f'%res[i,3], '%.2f'%res[i,0], '%.2f'%params[i,0], '%.2f'%params[i,1], '%.2f'%params[i,2]])
-    print(ptab)
-    
-    return
-
-#like_dir = os.getcwd() + '/../test_results/'
-compl = 4
-nrow = 10
-
 likelihood = PanthLikelihood()
+all_comp = np.arange(1, 11)
+dirname = '/mnt/zfsusers/deaglan/symbolic_regression/function_prior/ESR/esr//fitting//output//output_panth_dimful/'
 
-# Change the path
-#likelihood.like_dir = like_dir
-likelihood.fnprior_prefix = f"katz_codelen_2_"
-likelihood.combineDL_prefix = "combine_DL_katz_2_"
-likelihood.final_prefix = "final_katz_2_"
+do_language = False
+do_process = False
+print_results = True
 
-#for compl in range(1, 6):
-for compl in [7, 8]:
-    esr.fitting.combine_DL.main(compl, likelihood)
-
-comm.Barrier()
-quit()
+if do_language:
+    for comp in all_comp:
+        apply_language_prior(likelihood, comp, tmax=5)
+        comm.Barrier()
 if rank == 0:
-    old_fname = likelihood.out_dir + f'/final_{compl}.dat'
-    print_results(old_fname, nrow)
-    new_fname = likelihood.out_dir + '/' + likelihood.final_prefix + f'{compl}.dat'
-    print_results(new_fname, nrow)
+    #dirname = likelihood.out_dir + '/'
 
+    if do_process:
+        nx = len(likelihood.xvar)
+        #nx = 1590
+        process_fit(dirname, all_comp, nx)
 
+    if print_results:
+        df = pd.read_csv(dirname + 'selection_summary.csv', delimiter=';')
+        print(df.shape)
+        print('\nYOU WILL HAVE TO INSPECT THESE YOURSELF AS DUPLICATES MAY REMAIN\n')
+        for m in range(df.shape[0]):
+            res = []
+            for i in range(8):
+                f = df['f%i'%i][m]
+                if str(f) != str(None):
+                    _, eq, _ = likelihood.run_sympify(f, try_integration=False)
+                    f = sympy.latex(eq)
+                if m == 1:
+                    #res = ['%s & %.2e'%(eq, df['loss%i'%i][m]) for i in range(3)]
+                    res.append('$%s$ & %.2e'%(f, df['loss%i'%i][m]))
+                else:
+                    #res = ['%s & %.2f'%(eq, df['loss%i'%i][m]) for i in range(3)]
+                    res.append('$%s$ & %.2f'%(f, df['loss%i'%i][m]))
+            res = '%i & '%(m+1) + ' & '.join(res) + ' \\\\'
+            print(res)
+            print('\\hline')
+            
         

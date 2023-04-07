@@ -109,6 +109,7 @@ class SymbolCoder:
         self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
         self.ignore_ops = ['Abs', 're', 'im']   # do not attempt to find probability of these operators
+
         
     def equation2ntuples(self, n, eq, locs):
         """

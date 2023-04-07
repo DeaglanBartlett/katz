@@ -24,8 +24,14 @@ class KatzPrior:
                                 basis_functions[1],  # type1
                                 basis_functions[2]]  # type2
         self.coder = SymbolCoder(self.basis_functions)
-        data = self.coder.process_all_equations(n, self.all_eq, self.maxvar)
-        self.backoff = BackOff(data)
+        data_left = []
+        data_right = []
+        for eq in self.all_eq:
+            t = self.coder.process_all_equations(n+1, [eq], self.maxvar)
+            data_left += [t[0]] + [tt[:-1] for tt in t[1:]]
+            data_right += [tt[1:] for tt in t[1:] if tt[-1] != self.coder.code['None']]
+        self.backoff_left = BackOff(data_left)
+        self.backoff_right = BackOff(data_right)
         
     def logprior(self, eq):
         """
@@ -37,7 +43,15 @@ class KatzPrior:
         Returns:
             :p (float): The natural logarithm of the prior of the supplied equation
         """
-        t = self.coder.process_all_equations(self.n, [eq], self.maxvar)
-        p = np.array([self.backoff.get_pbo(tt[-1], tt[:-1]) for tt in t])
-        p = np.sum(np.log(p))
+
+        t = self.coder.process_all_equations(self.n+1, [eq], self.maxvar)
+
+        tleft = [t[0]] + [tt[:-1] for tt in t[1:]] 
+        pleft = np.array([self.backoff_left.get_pbo(tt[-1], tt[:-1]) for tt in tleft])
+        
+        tright = [tt[1:] for tt in t[1:] if tt[-1] != self.coder.code['None']]
+        pright = np.array([self.backoff_right.get_pbo(tt[-1], tt[:-1]) for tt in tright])
+        
+        p = np.sum(np.log(pleft)) + np.sum(np.log(pright))
+        
         return p
