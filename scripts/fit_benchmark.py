@@ -21,7 +21,21 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 
-def get_sig(name, f, x_range, frac_sigx):
+def get_sig(f, x_range, frac_sigx):
+    """
+    Determine the noise level to use. This is given as frac_sigx times
+    the standard deviation of the functions values evaluated on 10^5
+    randomly generated points within the x_range
+    
+    Args:
+        :f (str): The function which should be evaluated
+        :x_range (list[float, floar]): The [min, max] values of x to consider
+        :frac_sigx (float): The fraction of the standard deviation to use as sigma
+        
+    Returns:
+        :sig (float): The value of sigma to use
+    
+    """
 
     np.random.seed(0)
     nx = 10000
@@ -38,6 +52,24 @@ def get_sig(name, f, x_range, frac_sigx):
     return sig
 
 def make_data(name, f, x_range, nx, frac_sigx, samp_num, sig, make_fig=False):
+    """
+    Make a mock data sample from a given equation with a certain number of data points
+    and a given noise level. The results are saved to a file in the directory '../data/'
+    
+    Args:
+        :name (str): The name of the equation to be used
+        :f (str): The function which should be evaluated
+        :x_range (list[float, floar]): The [min, max] values of x to consider
+        :nx (int): The number of data points to be used in the mock
+        :frac_sigx (float): The fraction of the standard deviation to use as sigma
+        :samp_num (int): The mock number (which sets the seed of the random number generator)
+        :sig (float): The value of sigma to use for Gaussian noise
+        :make_fig (bool): Whether to make a plot of the mock data with the generating function
+        
+    Returns:
+        :None
+    
+    """
 
     np.random.seed(samp_num)
 
@@ -179,6 +211,16 @@ class MockLikelihood:
 
 
 def print_text(text):
+    """
+    Function to print progress announcements in standardised format
+    
+    Args:
+        :text (str): The text to be printed
+        
+    Returns:
+        :None
+        
+    """
     if rank == 0:
         stars = ["*" * len(text)]
         print('\n')
@@ -191,6 +233,21 @@ def print_text(text):
 
 
 def fit_mocks(name, nx, frac_sigx, samp_num, comp, tmax=5):
+    """
+    Run ESR for a given mock sample using the default MDL prescription
+    
+    Args:
+        :name (str): The name of the equation to be used
+        :nx (int): The number of data points to be used in the mock
+        :frac_sigx (float): The fraction of the standard deviation to use as sigma
+        :samp_num (int): The mock number
+        :comp (int): The complexity of function to consider
+        :tmax (float): maximum time in seconds to run any one part of simplification procedure for a given function
+        
+    Returns:
+        :None
+        
+    """
 
     likelihood = MockLikelihood(name, nx, frac_sigx, samp_num)
 
@@ -218,11 +275,43 @@ def fit_mocks(name, nx, frac_sigx, samp_num, comp, tmax=5):
 
 
 def _apply_language_prior(name, nx, frac_sigx, samp_num, comp, tmax=5):
+    """
+    Function which applies language-model function prior model selection
+    methods to the results of an ESR run.
+    
+    Args:
+        :name (str): The name of the equation to be used
+        :nx (int): The number of data points to be used in the mock
+        :frac_sigx (float): The fraction of the standard deviation to use as sigma
+        :samp_num (int): The mock number
+        :comp (int): The complexity of function to consider
+        :tmax (float): maximum time in seconds to run any one part of simplification procedure for a given function
+        
+    Returns:
+        :None
+    
+    """
+
     likelihood = MockLikelihood(name, nx, frac_sigx, samp_num)
     apply_language_prior(likelihood, comp, tmax=tmax)
+    
     return
 
 def apply_language_prior(likelihood, comp, tmax=5):
+    """
+    Function which applies language-model function prior model selection
+    methods to the results of an ESR run given a likelihood class
+    
+    Args:
+        :likelihood (esr.fitting.likelihood object): object containing data and likelihood function
+        :comp (int): The complexity of function to consider
+        :tmax (float): maximum time in seconds to run any one part of simplification procedure for a given function
+    
+    Returns:
+        :None
+        
+    """
+    
 
     fnprior_prefix = likelihood.fnprior_prefix
     combineDL_prefix = likelihood.combineDL_prefix
@@ -270,6 +359,19 @@ def apply_language_prior(likelihood, comp, tmax=5):
 
 
 def get_split_idx(L):
+    """
+    Find the indices of an array of length L which should be considered
+    by this rank. For output data_start, data_end, the rank considers the
+    entries array[data_start:data_end] where len(array) = L.
+    
+    Args:
+        :L (int): The length of the array we wish to split among ranks.
+        
+    Returns:
+        :data_start (int): The first index of the array to be considered by the rank
+        :data_end (int): The final index (+1) to be considered by the rank.
+        
+    """
 
     if rank==0:
         print("Number of cores:", size, flush=True)
@@ -295,6 +397,25 @@ def get_split_idx(L):
 
 
 def process_data(dirname, final_prefix, all_comp):
+    """
+    Convert results of all optimisations into a list of functions,
+    where we attempt to keep only the highest ranked of any duplicate
+    equation. This will not catch all duplicates, so the user must
+    check for them.
+    
+    Args:
+        :dirname (str): Directory name containing the optimisation results
+        :final_prefix (str): Start of file names which contain result
+        :all_comp (list[int]): All complexity of equation to consider
+        
+    Returns:
+        :fun (list[str]): The list of functions selected
+        :res (np.ndarray): The terms used for model selection of the returned functions
+        :params (np.ndarray): The maximimum likelihood parameters of the returned functions
+        :store_comp (np.ndarray): The complexities of the returned functions
+    
+    """
+
 
     res = []
     fun = []
@@ -354,14 +475,44 @@ def process_data(dirname, final_prefix, all_comp):
 
 def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp):
     """
-    Currently this deals with methods which do not involve the function prior
+    Run the function process_fit for a given mock sample
+    
+    Args:
+        :name (str): The name of the equation to be used
+        :all_true_eq (list[str]): List of variants of the true equation to find
+        :nx (int): The number of data points to be used in the mock
+        :frac_sigx (float): The fraction of the standard deviation to use as sigma
+        :samp_num (int): The mock number
+        :all_comp (list[int]): All complexity of equation to consider
+    
+    Returns:
+        :None
+    
     """
     fname = f'{name}_{nx}_{frac_sigx}_{samp_num}'
     dirname = f'output/output_{fname}/'
-    return process_fit(dirname, all_comp, nx, all_true_eq)
+    process_fit(dirname, all_comp, nx, all_true_eq)
+    return
 
 
 def process_fit(dirname, all_comp, nx, all_true_eq=None):
+    """
+    Process the results of all fits to give a function ranking according
+    to different model selection methods. If all_true_eq is not None, then
+    this will also find the location of the true equation in the rankings.
+    The results are outputted to a file called selection_summary.csv in
+    the directory given by dirname.
+    
+    Args:
+        :dirname (str): Directory name containing the optimisation results
+        :all_comp (list[int]): All complexity of equation to consider
+        :nx (int): The number of data points to be used in the mock
+        :all_true_eq (list[str] or None): List of variants of the true equation to find
+        
+    Returns:
+        :None
+    
+    """
 
     nkeep = 10
 
@@ -551,6 +702,9 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
 
 
 def main():
+    """
+    Run the benchmarks
+    """
 
     benchmarks = {
         'nguyen_6':['sin(x) + sin(x + x^2)', [-1, 1]],
@@ -603,7 +757,7 @@ def main():
 
         for frac_sigx in all_sigx:
 
-            sig = get_sig(name, f, x_range, frac_sigx)
+            sig = get_sig(f, x_range, frac_sigx)
 
             # Make mocks
             if do_make_mocks:
@@ -636,8 +790,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-"""
-TO DO
-- Add in language model prior to fitting and processing
-"""

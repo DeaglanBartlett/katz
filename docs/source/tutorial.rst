@@ -1,0 +1,5 @@
+.. default-role:: math
+
+Tutorial
+========
+

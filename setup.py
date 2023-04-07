@@ -14,6 +14,8 @@ setup(
         'scipy',
         'matplotlib',
         'pandas',
+	'sphinx>=5.0',
+	'sphinx-rtd-theme'
         ],
 
     classifiers=[
