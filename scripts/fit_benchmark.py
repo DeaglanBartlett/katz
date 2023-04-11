@@ -687,23 +687,20 @@ def main():
     }
 
 
-    #all_N = [10, 30, 100, 300, 1000, 3000, 10000]
-    #all_N = [300, 1000, 3000, 10000]
-    all_N = [100]
+    all_N = [10, 30, 100, 300, 1000, 3000, 10000]
     all_sigx = [0.5]
     nsamp = 5
-    #all_name = ['nguyen_8', 'korns_1', 'korns_4', 'korns_6', 'korns_7']
-    all_name = ['korns_6']
+    all_name = ['nguyen_8', 'korns_1', 'korns_4', 'korns_6', 'korns_7']
+    #all_name = ['korns_6']
     #all_name = ['korns_7']
     #all_name = ['korns_4']
-    #all_name = ['nguyen_8']
-    #all_comp = np.arange(1, 8)
-    all_comp = np.array([8])
+    all_comp = np.arange(1, 8)
+    #all_comp = np.array([8])
     
     do_make_mocks = False
     do_fit_mocks = False
-    do_language_model = True
-    do_process_mocks = False
+    do_language_model = False
+    do_process_mocks = True
 
     # All possible N-samp combinations
     combo = list(itertools.product(all_N, list(np.arange(nsamp)))) 

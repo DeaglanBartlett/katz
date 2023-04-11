@@ -15,7 +15,8 @@ setup(
         'matplotlib',
         'pandas',
 	'sphinx>=5.0',
-	'sphinx-rtd-theme'
+	'sphinx-rtd-theme',
+        'myst-parser'
         ],
 
     classifiers=[
