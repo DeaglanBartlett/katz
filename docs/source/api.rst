@@ -19,7 +19,7 @@ back_off
 good_turing
 ~~~~~~~~~~~
 
-.. automodule:: katz.good_turing 
+.. automodule:: katz.good_turing
    :members:
    :undoc-members:
    :show-inheritance:
@@ -48,7 +48,7 @@ scripts
 esr_prior
 ~~~~~~~~~
 
-.. automodule:: scripts.esr_prior 
+.. automodule:: scripts.esr_prior
    :members:
    :undoc-members:
    :show-inheritance:
