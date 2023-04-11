@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+pandas
+sphinx>=5.0
+sphinx-rtd-theme
+myst-parser
