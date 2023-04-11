@@ -1,4 +1,4 @@
-from .good_turing import GoodTuring
+from katz.good_turing import GoodTuring
 
 
 class BackOff:

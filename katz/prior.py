@@ -1,6 +1,6 @@
 import numpy as np
-from .back_off import BackOff
-from .process_equations import standardise_file, SymbolCoder
+from katz.back_off import BackOff
+from katz.process_equations import standardise_file, SymbolCoder
 
 class KatzPrior:
 
