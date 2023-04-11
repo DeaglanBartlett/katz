@@ -437,15 +437,15 @@ def process_data(dirname, final_prefix, all_comp):
     return fun, res, params, store_comp
     
     
-def remove_duplicates_and_sort(fun, loss, like):
+def remove_duplicates_and_sort(all_fun, all_loss, all_like):
     """
     Attempt to keep only the highest ranked of any duplicate equation.
     This will not catch all duplicates, so the user must check for them.
     
     Args:
-        :fun (list[str]): The list of functions
-        :loss (np.ndarray): The loss function to sort by
-        :like (np.ndarray): The negative log-likelihood values
+        :all_fun (list[str]): The list of functions
+        :all_loss (np.ndarray): The loss function to sort by
+        :all_like (np.ndarray): The negative log-likelihood values
         
     Returns:
         :fun (list[str]): The processed list of functions
@@ -453,6 +453,10 @@ def remove_duplicates_and_sort(fun, loss, like):
         :like (np.ndarray): The log-likelihoods of the sorted functions
     
     """
+
+    fun = all_fun
+    loss = all_loss.copy()
+    like = all_like.copy()
 
     # (1) Sort data by loss functions
     m = np.argsort(loss, kind='stable')
@@ -481,13 +485,13 @@ def remove_duplicates_and_sort(fun, loss, like):
     return fun, loss, like
     
     
-def get_top_eqs(fun, loss, nkeep, all_true_eq=None):
+def get_top_eqs(all_fun, all_loss, nkeep, all_true_eq=None):
     """
     Rank functions by their loss and keep up to nkeep of these
     
     Args:
-        :fun (list[str]): The list of functions
-        :loss (np.ndarray): The loss function to sort by
+        :all_fun (list[str]): The list of functions
+        :all_loss (np.ndarray): The loss function to sort by
         :nkeep (int): The maximum number of the top equations to keep
         :all_true_eq (list[str]): List of variants of the true equation to find
         
@@ -498,6 +502,9 @@ def get_top_eqs(fun, loss, nkeep, all_true_eq=None):
         :m_ltrue (str): The loss function of the truth
     
     """
+
+    fun = all_fun
+    loss = all_loss.copy()
 
     m = np.argsort(loss, kind='stable')
     m_fun = [None] * nkeep
@@ -680,20 +687,23 @@ def main():
     }
 
 
-    all_N = [10, 30, 100, 300, 1000, 3000, 10000]
-    #all_N = [10]
+    #all_N = [10, 30, 100, 300, 1000, 3000, 10000]
+    #all_N = [300, 1000, 3000, 10000]
+    all_N = [100]
     all_sigx = [0.5]
     nsamp = 5
-    all_name = ['korns_4']
-    #all_name = ['nguyen_8', 'korns_1', 'korns_6', 'korns_7']
-    #all_name = ['korns_6', 'korns_7']
+    #all_name = ['nguyen_8', 'korns_1', 'korns_4', 'korns_6', 'korns_7']
+    all_name = ['korns_6']
     #all_name = ['korns_7']
-    all_comp = np.arange(1, 8)
+    #all_name = ['korns_4']
+    #all_name = ['nguyen_8']
+    #all_comp = np.arange(1, 8)
+    all_comp = np.array([8])
     
     do_make_mocks = False
     do_fit_mocks = False
-    do_language_model = False
-    do_process_mocks = True
+    do_language_model = True
+    do_process_mocks = False
 
     # All possible N-samp combinations
     combo = list(itertools.product(all_N, list(np.arange(nsamp)))) 
