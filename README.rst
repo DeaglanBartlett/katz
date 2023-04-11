@@ -4,7 +4,11 @@ Katz
 :Katz: Function prior for symbolic regression with a Katz back-off model
 :Authors: Deaglan J. Bartlett
 :Homepage: https://github.com/DeaglanBartlett/katz 
-:Documentation: TO DO
+:Documentation: https://katz.readthedocs.io
+
+.. image:: https://readthedocs.org/projects/katz/badge/?version=latest
+  :target: https://katz.readthedocs.io/en/latest/?badge=latest
+  :alt: Documentation Status
 
 .. image:: https://img.shields.io/badge/astro.CO-arXiv%31234.56789-B31B1B.svg
   :target: https://arxiv.org/abs/XXXX.XXXXX
@@ -113,7 +117,8 @@ Below is a list of contributors to this repository.
 Documentation
 =============
 
-MAKE SOME DOCUMENTATION
+The documentation for this project can be found
+`at this link <https://katz.readthedocs.io/>`_
 
 Acknowledgements
 ================
