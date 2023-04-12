@@ -425,7 +425,6 @@ def process_data(dirname, final_prefix, all_comp):
             with open(fname, "r") as f:
                 reader = csv.reader(f, delimiter=';')
                 data = [row for row in reader]
-
                 res += [d[2:7] for d in data]
                 fun += [d[1] for d in data]
                 params += [d[7:] for d in data]
@@ -437,7 +436,7 @@ def process_data(dirname, final_prefix, all_comp):
     return fun, res, params, store_comp
     
     
-def remove_duplicates_and_sort(all_fun, all_loss, all_like):
+def remove_duplicates_and_sort(all_fun, all_loss, all_like, remove_by_like=True):
     """
     Attempt to keep only the highest ranked of any duplicate equation.
     This will not catch all duplicates, so the user must check for them.
@@ -446,7 +445,8 @@ def remove_duplicates_and_sort(all_fun, all_loss, all_like):
         :all_fun (list[str]): The list of functions
         :all_loss (np.ndarray): The loss function to sort by
         :all_like (np.ndarray): The negative log-likelihood values
-        
+        :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
+
     Returns:
         :fun (list[str]): The processed list of functions
         :loss (np.ndarray): The sorted loss functions
@@ -465,60 +465,42 @@ def remove_duplicates_and_sort(all_fun, all_loss, all_like):
     fun = [fun[i] for i in m]
 
     # (2) Remove duplicates by likelihood
-    _, uniq_idx = np.unique(like, return_index=True)
-    uniq_idx = np.sort(uniq_idx)
-    fun = [fun[i] for i in uniq_idx]
-    loss = loss[uniq_idx]
-    like = like[uniq_idx]
+    if remove_by_like:
+        _, uniq_idx = np.unique(like, return_index=True)
+        uniq_idx = np.sort(uniq_idx)
+        fun = [fun[i] for i in uniq_idx]
+        loss = loss[uniq_idx]
+        like = like[uniq_idx]
 
     # (3) Remove duplicates by name
-    new_fun = []
-    uniq_idx = []
-    for i in range(len(fun)):
-        if fun[i] not in new_fun:
-            uniq_idx.append(i)
-            new_fun.append(fun[i])
-    fun = new_fun
+    new_fun, uniq_idx = np.unique(fun, return_index=True)
+    fun = list(new_fun)
     loss = loss[uniq_idx]
     like = like[uniq_idx]
     
     return fun, loss, like
-    
-    
-def get_top_eqs(all_fun, all_loss, nkeep, all_true_eq=None):
+
+
+def get_truth_location(fun, loss, all_true_eq):
     """
-    Rank functions by their loss and keep up to nkeep of these
-    
+    Find the highest ranked of the `true' equations
+
     Args:
-        :all_fun (list[str]): The list of functions
-        :all_loss (np.ndarray): The loss function to sort by
-        :nkeep (int): The maximum number of the top equations to keep
+        :fun (list[str]): The list of functions
+        :loss (np.ndarray): The loss function to sort by
         :all_true_eq (list[str]): List of variants of the true equation to find
-        
+
     Returns:
-        :m_fun (list[str]): The strings of the top functions
-        :m_loss (np.ndarray): The loss functions of the top functions
         :m_ftrue (float): The true equation used
         :m_ltrue (str): The loss function of the truth
-    
+
     """
 
-    fun = all_fun
-    loss = all_loss.copy()
-
-    m = np.argsort(loss, kind='stable')
-    m_fun = [None] * nkeep
-    m_loss = np.ones(nkeep) * np.nan
-    
-    for i in range(min(nkeep, len(m))):
-        m_fun[i] = fun[m[i]]
-        m_loss[i] = loss[m[i]]
-        
     if all_true_eq is None:
         idx = []
     else:
         idx = [fun.index(true_eq) for true_eq in all_true_eq if true_eq in fun]
-        
+
     if len(idx) == 0:
         m_ltrue = np.nan
         m_ftrue = None
@@ -528,10 +510,59 @@ def get_top_eqs(all_fun, all_loss, nkeep, all_true_eq=None):
         idx = idx[np.argmin(all_m_ltrue)]
         m_ftrue = fun[idx]
 
-    return m_fun, m_loss, m_ftrue, m_ltrue
+    return m_ftrue, m_ltrue
+    
+    
+def get_top_eqs(all_fun, all_loss, nkeep, all_true_eq=None):
+    """
+    Rank functions by their loss and keep up to nkeep of these, while removing
+    duplicates of the true equation
+    
+    Args:
+        :all_fun (list[str]): The list of functions
+        :all_loss (np.ndarray): The loss function to sort by
+        :nkeep (int): The maximum number of the top equations to keep
+        :all_true_eq (list[str] or None): List of variants of the true equation to find
+        
+    Returns:
+        :m_fun (list[str]): The strings of the top functions
+        :m_loss (np.ndarray): The loss functions of the top functions
+    
+    """
+
+    fun = all_fun
+    loss = all_loss.copy()
+
+    m = np.argsort(loss, kind='stable')
+    m_fun = [None] * nkeep
+    m_loss = np.ones(nkeep) * np.nan
+
+    found_truth = False
+    j = 0
+
+    for i in range(min(nkeep, len(m))):
+        done = False
+        while not done:
+            if j >= len(m):
+                done = True
+            elif (all_true_eq is None) or (fun[m[j]] not in all_true_eq):
+                m_fun[i] = fun[m[j]]
+                m_loss[i] = loss[m[j]]
+                j +=1
+                done = True
+            elif not found_truth:
+                m_fun[i] = fun[m[j]]
+                m_loss[i] = loss[m[j]]
+                j += 1
+                found_truth = True
+                done = True
+            else:
+                j += 1
+        
+    return m_fun, m_loss
 
 
-def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp):
+def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp, remove_by_like=True):
     """
     Run the function process_fit for a given mock sample
     
@@ -542,6 +573,7 @@ def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp):
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
         :samp_num (int): The mock number
         :all_comp (list[int]): All complexity of equation to consider
+        :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
     
     Returns:
         :None
@@ -549,11 +581,11 @@ def _process_fit(name, all_true_eq, nx, frac_sigx, samp_num, all_comp):
     """
     fname = f'{name}_{nx}_{frac_sigx}_{samp_num}'
     dirname = f'output/output_{fname}/'
-    process_fit(dirname, all_comp, nx, all_true_eq)
+    process_fit(dirname, all_comp, nx, all_true_eq, remove_by_like=remove_by_like)
     return
 
 
-def process_fit(dirname, all_comp, nx, all_true_eq=None):
+def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
     """
     Process the results of all fits to give a function ranking according
     to different model selection methods. If all_true_eq is not None, then
@@ -566,6 +598,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
         :all_comp (list[int]): All complexity of equation to consider
         :nx (int): The number of data points to be used in the mock
         :all_true_eq (list[str] or None): List of variants of the true equation to find
+        :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
         
     Returns:
         :None
@@ -576,8 +609,9 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
 
     # METHOD 1: Max likelihood
     fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
-    fun, loss, like = remove_duplicates_and_sort(fun, res[:,2], res[:,2])
-    m1_fun, m1_loss, m1_ftrue, m1_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    m1_ftrue, m1_ltrue = get_truth_location(fun, res[:,2], all_true_eq) 
+    fun, loss, like = remove_duplicates_and_sort(fun, res[:,2], res[:,2], remove_by_like=remove_by_like)
+    m1_fun, m1_loss = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m1_ftrue not in m1_fun[:2]:
         print('\nMethod 1', dirname, m1_fun[:min(len(m1_fun),4)])
 
@@ -593,23 +627,26 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
         new_fun[i] = fun[idx[np.argmin(ll)]]
     loss = (loss[1:] - loss[:-1]) / (all_comp[1:] - all_comp[:-1])
     new_fun = new_fun[1:]
-    m2_fun, m2_loss, m2_ftrue, m2_ltrue = get_top_eqs(new_fun, loss, nkeep, all_true_eq=all_true_eq)
+    m2_ftrue, m2_ltrue = get_truth_location(new_fun, loss, all_true_eq)
+    m2_fun, m2_loss = get_top_eqs(new_fun, loss, nkeep, all_true_eq=all_true_eq)
     if m2_ftrue not in m2_fun[:2]:
         print('\nMethod 2', dirname, m2_fun[:min(len(m2_fun),4)])
 
     # METHOD 3: MDL (a la Bartlett et al. 2022)
     fun, res, params, store_comp = process_data(dirname, 'final_', all_comp)
-    fun, loss, like = remove_duplicates_and_sort(fun, res[:,0], res[:,2])
-    m3_fun, m3_loss, m3_ftrue, m3_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    m3_ftrue, m3_ltrue = get_truth_location(fun, res[:,0], all_true_eq)
+    fun, loss, like = remove_duplicates_and_sort(fun, res[:,0], res[:,2], remove_by_like=remove_by_like)
+    m3_fun, m3_loss = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m3_ftrue not in m3_fun[:2]:
         print('\nMethod 3', dirname, m3_fun[:min(len(m3_fun),4)])
         
     # METHOD 4: MDL with language model prior
     fun, res, params, store_comp = process_data(dirname, 'final_katz_2_', all_comp)
-    fun, loss, like = remove_duplicates_and_sort(fun, res[:,0], res[:,2])
-    m4_fun, m4_loss, m4_ftrue, m4_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    m4_ftrue, m4_ltrue = get_truth_location(fun, res[:,0], all_true_eq)
+    fun, loss, like = remove_duplicates_and_sort(fun, res[:,0], res[:,2], remove_by_like=remove_by_like)
+    m4_fun, m4_loss = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m4_ftrue not in m4_fun[:2]:
-        print('\nMethod 4', dirname, m3_fun[:min(len(m3_fun),4)])
+        print('\nMethod 4', dirname, m4_fun[:min(len(m3_fun),4)])
         
     # Terms for FBF prior
     b = 1 / np.sqrt(nx)
@@ -620,8 +657,9 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
     m = params!=0
     p = np.sum(m, axis=1)
     loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] + p/2 * np.log(2 * np.pi * nup)
-    fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2])
-    m5_fun, m5_loss, m5_ftrue, m5_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    m5_ftrue, m5_ltrue = get_truth_location(fun, loss, all_true_eq)
+    fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2], remove_by_like=remove_by_like)
+    m5_fun, m5_loss = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m5_ftrue not in m5_fun[:2]:
         print('\nMethod 5', dirname, m5_fun[:min(len(m5_fun),4)])
         
@@ -633,8 +671,9 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None):
     m = params!=0
     p = np.sum(m, axis=1)
     loss = (1 - b) * res[:,2] - p/2 * np.log(b) + res[:,4] 
-    fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2])
-    m6_fun, m6_loss, m6_ftrue, m6_ltrue = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
+    m6_ftrue, m6_ltrue = get_truth_location(fun, loss, all_true_eq)
+    fun, loss, like = remove_duplicates_and_sort(fun, loss, res[:,2], remove_by_like=remove_by_like)
+    m6_fun, m6_loss = get_top_eqs(fun, loss, nkeep, all_true_eq=all_true_eq)
     if m6_ftrue not in m6_fun[:2]:
         print('\nMethod 6', dirname, m6_fun[:min(len(m6_fun),4)])
 
@@ -682,8 +721,13 @@ def main():
                     '(-a0 + x)/pow(Abs(a1),(1/4))'],
         'korns_4': ['a0 + a1*sin(x)', 'a0 - sin(x)*cos(a1)', 'a0 + sin(x)*cos(a1)'],
         'korns_6': ['a0 + a1*sqrt(x)', 'a0 + sqrt(x)*sqrt(Abs(a1))', 'a0*(a1 - sqrt(x))'],
-        'korns_7': ['a0 - pow(Abs(a1),x)', 'a0 + pow(Abs(a1),x)/a2', 'a0 + a1/pow(Abs(a2),x)', 'a0*(a1 - pow(Abs(a2),x))',
-                    'a0 + a1*pow(Abs(a2),x)']
+        'korns_7': ['a0 - pow(Abs(a1),x)', 'a0 + pow(Abs(a1),x)/a2', 'a0 + a1/pow(Abs(a2),x)',
+            'a0*(a1 - pow(Abs(a2),x))','a0 + a1*pow(Abs(a2),x)', 'a0 + a1*pow(Abs(a2),(2*x))', 
+            'a0 - pow(Abs(a1),x)/sqrt(Abs(a2))', '(a0 - pow(Abs(a1),x))/sqrt(Abs(a2))',
+            'a0 - pow(Abs(a1),(x/2))*sqrt(Abs(1/a2))', 'a0*(cos(a1) - pow(Abs(a2),x))',
+            'a0 - pow(Abs(a1),x)/cos(a2)', '(a0 - pow(Abs(a1),x))/cos(a2)',
+            'a0*(-sin(a2) + pow(Abs(a1),x))', 
+            ]
     }
 
 
@@ -691,11 +735,8 @@ def main():
     all_sigx = [0.5]
     nsamp = 5
     all_name = ['nguyen_8', 'korns_1', 'korns_4', 'korns_6', 'korns_7']
-    #all_name = ['korns_6']
-    #all_name = ['korns_7']
-    #all_name = ['korns_4']
-    all_comp = np.arange(1, 8)
-    #all_comp = np.array([8])
+    all_name = ['korns_7']
+    all_comp = np.arange(1, 9)
     
     do_make_mocks = False
     do_fit_mocks = False

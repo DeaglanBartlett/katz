@@ -50,6 +50,7 @@ if rank == 0:
             
 
         # Now do printing for a LaTex Document to visualise results
+        print('\nPrinting latex to: ', dirname + '/selection_results.tex')
         with open(dirname + '/selection_results.tex', 'w') as fout:
             print('\\documentclass[12pt,fleqn]{article}', file=fout)
             print('\\usepackage{amsmath,amssymb}', file=fout)
