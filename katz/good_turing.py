@@ -61,7 +61,7 @@ class GoodTuring:
             :word: The word whose frequency we wish to find
             
         Returns:
-            int: The number of times this word appeared in the corpus
+            :int: The number of times this word appeared in the corpus
         """
         if word in self.R.keys():
             return self.R[word]

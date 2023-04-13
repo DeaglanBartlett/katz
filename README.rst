@@ -10,8 +10,8 @@ Katz
   :target: https://katz.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
-.. image:: https://img.shields.io/badge/astro.CO-arXiv%31234.56789-B31B1B.svg
-  :target: https://arxiv.org/abs/XXXX.XXXXX
+.. image:: https://img.shields.io/badge/astro.CO-arXiv%32304.00000-B31B1B.svg
+  :target: https://arxiv.org/abs/2304.XXXXX
 
 About
 =====
@@ -71,8 +71,19 @@ Users are  required to cite the katz paper
 
 .. code:: bibtex
 
-  @ARTICLE{UpcomingPaper,
+  @ARTICLE{2023arXiv2304.XXXXX,
        author = {{Bartlett}, D.~J. and {Desmond}, H. and {Ferreira}, P.~G.},
+        title = "{Priors for symbolic regression}",
+      journal = {arXiv e-prints},
+     keywords = {Computer Science - Machine Learning},
+         year = 2023,
+        month = apr,
+          eid = {arXiv:2304.XXXXX},
+        pages = {arXiv:2304.XXXXX},
+  archivePrefix = {arXiv},
+       eprint = {2304.XXXXX},
+  primaryClass = {cs.LG},
+          url = {https://arxiv.org/abs/2304.XXXXX},
   }
 
 
