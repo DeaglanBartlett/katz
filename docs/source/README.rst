@@ -10,8 +10,8 @@ Katz
   :target: https://katz.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
 
-.. image:: https://img.shields.io/badge/astro.CO-arXiv%31234.56789-B31B1B.svg
-  :target: https://arxiv.org/abs/XXXX.XXXXX
+.. image:: https://img.shields.io/badge/cs.LG-arXiv%32304.06333-B31B1B.svg
+  :target: https://arxiv.org/abs/2304.06333
 
 About
 =====
@@ -67,12 +67,23 @@ To generate a 2-gram prior from the `AI Feynman function set <https://space.mit.
 Licence and Citation
 ====================
 
-Users are  required to cite the katz paper
+Users are  required to cite the katz `Paper <https://arxiv.org/abs/2304.06333>`_
 
 .. code:: bibtex
 
-  @ARTICLE{UpcomingPaper,
+  @ARTICLE{2023arXiv2304.06333,
        author = {{Bartlett}, D.~J. and {Desmond}, H. and {Ferreira}, P.~G.},
+        title = "{Priors for symbolic regression}",
+      journal = {arXiv e-prints},
+     keywords = {Computer Science - Machine Learning},
+         year = 2023,
+        month = apr,
+          eid = {arXiv:2304.06333},
+        pages = {arXiv:2304.06333},
+  archivePrefix = {arXiv},
+       eprint = {2304.06333},
+  primaryClass = {cs.LG},
+          url = {https://arxiv.org/abs/2304.06333},
   }
 
 
