@@ -107,36 +107,22 @@ class SymbolCoder:
         self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
         self.ignore_ops = ['Abs', 're', 'im']   # do not attempt to find probability of these operators
-
         
-    def equation2ntuples(self, n, eq, locs):
+        
+    def nodes2ntuples(self, n, nodes):
         """
-        Convert an equation into n-tuples describing the tree structure of the function
+        Convert a node object giving the tree representation of an equation into
+        n-tuples describing the tree structure of the function
         
         Args:
             :n (int): The length of the n-tuples to produce
-            :eq (str): The equation to convert to an n-tuple
-            :locs (dict): dictionary of string:sympy objects describing variables
+            :nodes (esr.generation.generator.DecoratedNode): Node object corresponding to the tree
             
         Returns:
             :ntuples (list); List of n-tuples which describe tree structure of function
             
         """
-
-        expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs, evalf=True)
         
-        # Remove any operators we want to ignore ('Abs')
-        redo = False
-        for op in self.ignore_ops:
-            if op in eq:
-                redo = True
-        if redo:
-            s = str(expr)
-            s = split_by_punctuation(s)
-            s = [ss for ss in s if ss not in self.ignore_ops]
-            s = ''.join(s)
-            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True)
-
         lin, val = nodes.get_sibling_lineage()
 
         ntuples = []
@@ -171,6 +157,67 @@ class SymbolCoder:
             
         # The parent node will not have been considered
         ntuples = [tuple([ntuples[0][0]])] + ntuples
+        
+        return ntuples
+        
+    def labels2ntuples(self, n, labels):
+        """
+        Convert a list of labels giving the tree representation of an equation into
+        n-tuples describing the tree structure of the function
+        
+        Args:
+            :n (int): The length of the n-tuples to produce
+            :labels (list): The list giving the equation to convert to an n-tuple
+            
+        Returns:
+            :ntuples (list); List of n-tuples which describe tree structure of function
+            
+        """
+        
+        # Get parent operators
+        s = generator.labels_to_shape(labels, self.basis_functions)
+        success, _, tree = generator.check_tree(s)
+        assert success
+        
+        for i, l in enumerate(labels):
+            tree[i].assign_op(l)
+        
+        nodes = generator.DecoratedNode(None, self.basis_functions)
+        nodes.from_node_list(0, tree, self.basis_functions)
+        ntuples = self.nodes2ntuples(n, nodes)
+
+        return ntuples
+
+        
+    def equation2ntuples(self, n, eq, locs):
+        """
+        Convert an equation into n-tuples describing the tree structure of the function
+        
+        Args:
+            :n (int): The length of the n-tuples to produce
+            :eq (str): The equation to convert to an n-tuple
+            :locs (dict): dictionary of string:sympy objects describing variables
+            
+        Returns:
+            :ntuples (list); List of n-tuples which describe tree structure of function
+            
+        """
+
+        expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs, evalf=True)
+        
+        # Remove any operators we want to ignore ('Abs')
+        redo = False
+        for op in self.ignore_ops:
+            if op in eq:
+                redo = True
+        if redo:
+            s = str(expr)
+            s = split_by_punctuation(s)
+            s = [ss for ss in s if ss not in self.ignore_ops]
+            s = ''.join(s)
+            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True)
+            
+        ntuples = self.nodes2ntuples(n, nodes)
 
         return ntuples
         
@@ -195,7 +242,10 @@ class SymbolCoder:
         
         ntuples = []
         for eq in all_eq:
-            ntuples += self.equation2ntuples(n, eq, locs)
+            if isinstance(eq, str):
+                ntuples += self.equation2ntuples(n, eq, locs)
+            else:
+                ntuples += self.labels2ntuples(n, eq)
 
         return ntuples
     
@@ -212,9 +262,11 @@ class SymbolCoder:
         """
         if op is None:
             return str(None)
-        elif op in self.sympy_numerics:
+        elif op in self.sympy_numerics or generator.is_float(op):
             return 'a'
         elif op == 'Symbol':
+            return 'x'
+        elif (op.startswith('x') or op.startswith('x')) and (op[1:].isdigit()):
             return 'x'
         elif op == 'Add' and '+' in self.basis_functions[2]:
             return '+'
