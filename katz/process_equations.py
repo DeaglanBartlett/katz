@@ -203,7 +203,7 @@ class SymbolCoder:
             
         """
 
-        expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs, evalf=True)
+        expr, nodes, c = generator.string_to_node(eq, self.basis_functions, locs=locs, evalf=True, kernS_only=True)
         
         # Remove any operators we want to ignore ('Abs')
         redo = False
@@ -215,7 +215,7 @@ class SymbolCoder:
             s = split_by_punctuation(s)
             s = [ss for ss in s if ss not in self.ignore_ops]
             s = ''.join(s)
-            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True)
+            expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True, kernS_only=True)
             
         ntuples = self.nodes2ntuples(n, nodes)
 
