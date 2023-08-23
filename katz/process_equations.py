@@ -132,7 +132,7 @@ class SymbolCoder:
             idx = [i for i,tt in enumerate(t) if tt not in self.ignore_ops]
             tnew = [t[i] for i in idx]
             vnew = [v[i] for i in idx]
-            if tnew[-1][0] in self.ignore_ops or tnew[-1][1] in self.ignore_ops:
+            if tnew[-1][0] in self.ignore_ops or (len(tnew[-1]) > 1 and tnew[-1][1] in self.ignore_ops):
                 continue
 
             # Get codeword of ancestors
@@ -266,7 +266,7 @@ class SymbolCoder:
             return 'a'
         elif op == 'Symbol':
             return 'x'
-        elif (op.startswith('x') or op.startswith('x')) and (op[1:].isdigit()):
+        elif (op.startswith('x') or op.startswith('a')) and (op[1:].isdigit() or len(op) == 1):
             return 'x'
         elif op == 'Add' and '+' in self.basis_functions[2]:
             return '+'
