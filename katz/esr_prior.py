@@ -2,13 +2,13 @@ import os
 import sys
 import numpy as np
 import itertools
+import warnings
 from mpi4py import MPI
 from katz.prior import KatzPrior
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
-
 
 def get_indices(n):
     """
@@ -80,6 +80,35 @@ def get_functions(comp, dirname):
     return fcn_list[data_start:data_end], data_start, data_end
     
     
+def get_trees(comp, dirname):
+    """
+    Load the tree files for ESR for a given complexity and convert to
+    lists of strings. These are split among ranks.
+    
+    Args:
+        :comp (int): The complexity of function to consider
+        :dirname (str): The directory containing the ESR functions
+        
+    Returns:
+        :tree_list (list): The list of lists giving trees to be considered by this rank
+    
+    """
+    
+    fname = dirname + f'/compl_{comp}/trees_{comp}.txt'
+    with open(fname, "r") as f:
+        tree_list = f.read().splitlines()
+    data_start, data_end = get_indices(len(tree_list))
+    
+    tree_list = tree_list[data_start:data_end]
+    logconst = [None] * len(tree_list)
+    for i in range(len(tree_list)):
+        tree = tree_list[i].split("'")
+        tree_list[i] = [tt for tt in tree if tt not in ["[", "]", " ", ", "]]
+        
+    return tree_list
+    
+    
+    
 def get_logconst(comp, dirname, overwrite=False):
     """
     Determine the sum(log(c_i)) for constants c_i appearning in all equations
@@ -99,17 +128,9 @@ def get_logconst(comp, dirname, overwrite=False):
     if os.path.isfile(outname) and (not overwrite):
         return
 
-    fname = dirname + f'/compl_{comp}/trees_{comp}.txt'
-    with open(fname, "r") as f:
-        tree_list = f.read().splitlines()
-    data_start, data_end = get_indices(len(tree_list))
-    
-    tree_list = tree_list[data_start:data_end]
+    tree_list = get_trees(comp, dirname)
     logconst = [None] * len(tree_list)
-    for i in range(len(tree_list)):
-        tree = tree_list[i].split("'")
-        tree = [tt for tt in tree if tt not in ["[", "]", " ", ", "]]
-        
+    for i, tree in enumerate((tree_list)):
         n = np.array([int(tt) for tt in tree if tt.lstrip("-").isdigit()])  # Integers
         n[n==0] = 1  # So we have log(1) for 0 instead of log(0)
         logconst[i] = np.sum(np.log(np.abs(n)))
@@ -121,7 +142,7 @@ def get_logconst(comp, dirname, overwrite=False):
     
     return
     
-def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=False, input_delimiter=','):
+def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=False, input_delimiter=',', use_tree=False):
     """
     Compute the log of the function prior for all functions at a give complexity
     given a corpus of equations. Saves results to two files: katz_logprior_{n}_{comp}.txt
@@ -137,19 +158,28 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
         :out_eqfile (str): Name of file to output standardised corpus equations to
         :overwrite (bool): Whether to overwrite files if they already exist
         :input_delimiter (str): The delimiter used in the input csv file
+        :use_tree (bool, default=False): Whether to compute the prior using the tree representation from file (True) or using the string representation (False) and convert this to a tree automatically.
         
     Returns:
         :None
     
     """
 
-
-    outname_code = dirname + f'/compl_{comp}/katz_codelen_{n}_{comp}.txt'
-    outname_prior = dirname + f'/compl_{comp}/katz_logprior_{n}_{comp}.txt'
+    outname_code = dirname + f'/compl_{comp}/katz_codelen_{n}_{comp}'
+    outname_prior = dirname + f'/compl_{comp}/katz_logprior_{n}_{comp}'
+    if use_tree:
+        outname_code += '_tree'
+        outname_prior += '_tree'
+    outname_code += '.txt'
+    outname_prior += '.txt'
+        
     if os.path.isfile(outname_code) and os.path.isfile(outname_prior) and (not overwrite):
         return
 
-    fcn_list_proc, _, _ = get_functions(comp, dirname)
+    if use_tree:
+        fcn_list_proc = get_trees(comp, dirname)
+    else:
+        fcn_list_proc, _, _ = get_functions(comp, dirname)
 
     kp = KatzPrior(n, basis_functions, in_eqfile, out_eqfile, input_delimiter=input_delimiter)
     logprior_proc = np.empty(len(fcn_list_proc))
@@ -159,9 +189,17 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
             logprior_proc[i] = np.nan
         else:
             try:
-                logprior_proc[i] = kp.logprior(eq.strip())
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    if use_tree:
+                        logprior_proc[i] = kp.logprior(eq)
+                    else:
+                        logprior_proc[i] = kp.logprior(eq.strip())
             except Exception as e:
-                print("BAD EQ:", eq.strip(), e)
+                if use_tree:
+                    print("BAD EQ:", eq, e)
+                else:
+                    print("BAD EQ:", eq.strip(), e)
                 logprior_proc[i] = np.nan
 
     logprior = comm.gather(logprior_proc, root=0)
@@ -172,39 +210,3 @@ def compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, o
         np.savetxt(outname_code, - logprior + logconst)# will use as replacement to aifeyn term, so need to sum these
 
     return
-    
-    
-def main():
-    """
-    Run the prior generation for ESR functions
-    """
-
-    basis_functions = [["a", "x"],
-                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh"],
-                ["+", "-", "*", "/", "pow"]]
-#    in_eqfile = '../data/FeynmanEquations.csv'
-#    out_eqfile = '../data/NewFeynman.csv'
-    in_eqfile = '../data/PhysicsEquations.csv'
-    out_eqfile = '../data/NewPhysics.csv'
-    input_delimiter = ';'
-    n = 3
-
-    #dirname = '../../ESR/esr/function_library/core_maths/'
-    dirname = '../../ESR/esr/function_library/new_osc_maths/'
-    #for comp in range(1, 7):
-    #comp = 10
-    for comp in [7, 8]:
-        for n in [1, 2, 3]:
-            if rank == 0:
-                print('\nCOMPLEXITY:', comp, flush=True)
-            get_logconst(comp, dirname)
-            compute_logprior(comp, n, basis_functions, dirname, in_eqfile, out_eqfile, overwrite=True, input_delimiter=input_delimiter)
-    
-    
-    return
-    
-if __name__ == "__main__":
-    main()
-    
-    
-    

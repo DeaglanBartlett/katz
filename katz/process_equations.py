@@ -107,6 +107,86 @@ class SymbolCoder:
         self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
         self.ignore_ops = ['Abs', 're', 'im']   # do not attempt to find probability of these operators
+        
+        
+    def nodes2ntuples(self, n, nodes):
+        """
+        Convert a node object giving the tree representation of an equation into
+        n-tuples describing the tree structure of the function
+        
+        Args:
+            :n (int): The length of the n-tuples to produce
+            :nodes (esr.generation.generator.DecoratedNode): Node object corresponding to the tree
+            
+        Returns:
+            :ntuples (list); List of n-tuples which describe tree structure of function
+            
+        """
+        
+        lin, val = nodes.get_sibling_lineage()
+
+        ntuples = []
+        for t,v in zip(lin, val):
+
+            # Check for ignored operators
+            idx = [i for i,tt in enumerate(t) if tt not in self.ignore_ops]
+            tnew = [t[i] for i in idx]
+            vnew = [v[i] for i in idx]
+            if tnew[-1][0] in self.ignore_ops or (len(tnew[-1]) > 1 and tnew[-1][1] in self.ignore_ops):
+                continue
+
+            # Get codeword of ancestors
+            if len(tnew) >= n:
+                x = tnew[-n:-1]
+            else:
+                x = tuple([None]*(n-len(tnew)) + list(tnew[:-1]))
+            nt = [self.op2codeword(tt) for tt in x]
+            # Deal with sibling at end of tree
+            if isinstance(t[-1], tuple):
+                sib = [self.op2str(tt) for tt in t[-1]]
+            else:
+                sib = [self.op2str(tt) for tt in (t[-1], None)]
+            if sib[0] == 'x' and sib[1] == 'x' and (vnew[-1][0] != vnew[-1][1]):
+                sib[1] = 'y'
+            tup = list(nt + [self.code[s] for s in sib])
+            
+            # Remove "None" at start of lineage
+            idx = [i for i in range(len(tup)) if tup[i] != self.code['None']]
+            tup = tuple(tup[idx[0]:])
+            ntuples.append(tup)
+            
+        # The parent node will not have been considered
+        ntuples = [tuple([ntuples[0][0]])] + ntuples
+        
+        return ntuples
+        
+    def labels2ntuples(self, n, labels):
+        """
+        Convert a list of labels giving the tree representation of an equation into
+        n-tuples describing the tree structure of the function
+        
+        Args:
+            :n (int): The length of the n-tuples to produce
+            :labels (list): The list giving the equation to convert to an n-tuple
+            
+        Returns:
+            :ntuples (list); List of n-tuples which describe tree structure of function
+            
+        """
+        
+        # Get parent operators
+        s = generator.labels_to_shape(labels, self.basis_functions)
+        success, _, tree = generator.check_tree(s)
+        assert success
+        
+        for i, l in enumerate(labels):
+            tree[i].assign_op(l)
+        
+        nodes = generator.DecoratedNode(None, self.basis_functions)
+        nodes.from_node_list(0, tree, self.basis_functions)
+        ntuples = self.nodes2ntuples(n, nodes)
+
+        return ntuples
 
         
     def equation2ntuples(self, n, eq, locs):
@@ -136,41 +216,8 @@ class SymbolCoder:
             s = [ss for ss in s if ss not in self.ignore_ops]
             s = ''.join(s)
             expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True)
-
-        lin, val = nodes.get_sibling_lineage()
-
-        ntuples = []
-        for t,v in zip(lin, val):
-
-            # Check for ignored operators
-            idx = [i for i,tt in enumerate(t) if tt not in self.ignore_ops]
-            tnew = [t[i] for i in idx]
-            vnew = [v[i] for i in idx]
-            if tnew[-1][0] in self.ignore_ops or tnew[-1][1] in self.ignore_ops:
-                continue
-
-            # Get codeword of ancestors
-            if len(tnew) >= n:
-                x = tnew[-n:-1]
-            else:
-                x = tuple([None]*(n-len(tnew)) + list(tnew[:-1]))
-            nt = [self.op2codeword(tt) for tt in x]
-            # Deal with sibling at end of tree
-            if isinstance(t[-1], tuple):
-                sib = [self.op2str(tt) for tt in t[-1]]
-            else:
-                sib = [self.op2str(tt) for tt in (t[-1], None)]
-            if sib[0] == 'x' and sib[1] == 'x' and (vnew[-1][0] != vnew[-1][1]):
-                sib[1] = 'y'
-            tup = list(nt + [self.code[s] for s in sib])
             
-            # Remove "None" at start of lineage
-            idx = [i for i in range(len(tup)) if tup[i] != self.code['None']]
-            tup = tuple(tup[idx[0]:])
-            ntuples.append(tup)
-            
-        # The parent node will not have been considered
-        ntuples = [tuple([ntuples[0][0]])] + ntuples
+        ntuples = self.nodes2ntuples(n, nodes)
 
         return ntuples
         
@@ -195,7 +242,10 @@ class SymbolCoder:
         
         ntuples = []
         for eq in all_eq:
-            ntuples += self.equation2ntuples(n, eq, locs)
+            if isinstance(eq, str):
+                ntuples += self.equation2ntuples(n, eq, locs)
+            else:
+                ntuples += self.labels2ntuples(n, eq)
 
         return ntuples
     
@@ -212,9 +262,11 @@ class SymbolCoder:
         """
         if op is None:
             return str(None)
-        elif op in self.sympy_numerics:
+        elif op in self.sympy_numerics or generator.is_float(op):
             return 'a'
         elif op == 'Symbol':
+            return 'x'
+        elif (op.startswith('x') or op.startswith('a')) and (op[1:].isdigit() or len(op) == 1):
             return 'x'
         elif op == 'Add' and '+' in self.basis_functions[2]:
             return '+'

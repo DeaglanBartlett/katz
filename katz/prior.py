@@ -47,7 +47,7 @@ class KatzPrior:
 
         t = self.coder.process_all_equations(self.n+1, [eq], self.maxvar)
 
-        tleft = [t[0]] + [tt[:-1] for tt in t[1:]] 
+        tleft = [t[0]] + [tt[:-1] for tt in t[1:]]
         pleft = np.array([self.backoff_left.get_pbo(tt[-1], tt[:-1]) for tt in tleft])
         
         tright = [tt[1:] for tt in t[1:] if tt[-1] != self.coder.code['None']]
