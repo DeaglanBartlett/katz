@@ -103,6 +103,7 @@ class SymbolCoder:
                     'One', 'NegativeOne', 'Half', 'NaN', 'Infinity', 'NegativeInfinity',
                     'ComplexInfinity', 'Exp1', 'ImaginaryUnit', 'Pi', 'EulerGamma',
                     'Catalan', 'GoldenRatio', 'TribonacciConstant', 'mod_inverse']
+        self.sympy_numerics = [s.lower() for s in self.sympy_numerics]
         self.ops = [str(None), 'a', 'x', 'y'] + basis_functions[1] + basis_functions[2]
         self.code = self.ops
         self.code = dict(zip(self.code, np.arange(len(self.code)).astype(str)))
@@ -217,7 +218,21 @@ class SymbolCoder:
             s = ''.join(s)
             expr, nodes, c = generator.string_to_node(s, self.basis_functions, locs=locs, evalf=True, kernS_only=True)
             
-        ntuples = self.nodes2ntuples(n, nodes)
+        labels = nodes.to_list(self.basis_functions)
+        for i in range(len(labels)):
+            if labels[i] == 'Add' and '+' in self.basis_functions[2]:
+                labels[i] = '+'
+            elif labels[i] == 'Sub' and '-' in self.basis_functions[2]:
+                labels[i] = '-'
+            elif labels[i] == 'Mul' and '*' in self.basis_functions[2]:
+                labels[i] = '*'
+            elif labels[i] == 'Div' and '/' in self.basis_functions[2]:
+                labels[i] = '/'
+            elif labels[i].lower() in self.sympy_numerics or generator.is_float(labels[i] ):
+                labels[i] = 'a'
+            else:
+                labels[i] = labels[i].lower()
+        ntuples = self.labels2ntuples(n, labels)
 
         return ntuples
         
@@ -262,7 +277,7 @@ class SymbolCoder:
         """
         if op is None:
             return str(None)
-        elif op in self.sympy_numerics or generator.is_float(op):
+        elif op.lower() in self.sympy_numerics or generator.is_float(op):
             return 'a'
         elif op == 'Symbol':
             return 'x'
@@ -270,6 +285,8 @@ class SymbolCoder:
             return 'x'
         elif op == 'Add' and '+' in self.basis_functions[2]:
             return '+'
+        elif op == 'Sub' and '-' in self.basis_functions[2]:
+            return '-'
         elif op == 'Mul' and '*' in self.basis_functions[2]:
             return '*'
         elif op == 'Div' and '/' in self.basis_functions[2]:
