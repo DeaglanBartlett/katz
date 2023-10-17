@@ -46,7 +46,7 @@ def standardise_file(in_name, out_name, input_delimiter):
     """
 
     df = pd.read_csv(in_name, delimiter=input_delimiter)
-    maxvar = int(df['# variables'].max())
+    maxvar = int(df['# variables'].max()) + 1
         
     all_eq = []
     
