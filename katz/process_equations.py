@@ -175,13 +175,18 @@ class SymbolCoder:
             
         """
         
+        labels_changed = labels.copy()
+        for i, lab in enumerate(labels):
+            if lab.lower() in self.sympy_numerics or generator.is_float(lab):
+                labels_changed[i] = 'a'
+        
         # Get parent operators
-        s = generator.labels_to_shape(labels, self.basis_functions)
+        s = generator.labels_to_shape(labels_changed, self.basis_functions)
         success, _, tree = generator.check_tree(s)
         assert success
         
-        for i, l in enumerate(labels):
-            tree[i].assign_op(l)
+        for i, lab in enumerate(labels_changed):
+            tree[i].assign_op(lab)
         
         nodes = generator.DecoratedNode(None, self.basis_functions)
         nodes.from_node_list(0, tree, self.basis_functions)
