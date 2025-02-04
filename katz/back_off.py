@@ -1,5 +1,5 @@
 from katz.good_turing import GoodTuring
-
+import itertools
 
 class BackOff:
 
@@ -38,7 +38,8 @@ class BackOff:
                 self.all_gt[i] = [GoodTuring(d), GoodTuring(d_start)]
         
         # Find all unique words in the corpus
-        self.words = list(sum(corpus, ()))
+        # self.words = list(sum(corpus, ()))
+        self.words = list(itertools.chain(*corpus))
         self.words = list(sorted(set(self.words), key=self.words.index))
         
     def get_d(self, phrase):
@@ -126,11 +127,8 @@ class BackOff:
     
         new_phrase = old_phrase + (wnew,)
         cnew = self.all_gt[len(new_phrase)][0].actual_count(new_phrase) # C(w_{i-n+1} ... w_i)
-        
-        if len(old_phrase) == 0:
-            pbo = self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)
             
-        elif cnew > 0:
+        if cnew > 0 and len(old_phrase) > 0:
             d = self.get_d(new_phrase)  # d_{w_{i-n+1} ... w_i}
             cold = self.all_gt[len(new_phrase)][1].actual_count(old_phrase)     # C(w_{i-n+1} ... w_{i-1})
             pbo = d * cnew / cold
@@ -144,7 +142,7 @@ class BackOff:
                 # If no data for (n-1)-gram, skip n-1 and use n-2
                 pbo = self.get_pbo(wnew, old_phrase[1:])            # Pbo(w_i | w_{i-n+2} ... w_{i-1})
                 
-        elif self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0:
+        elif len(old_phrase) > 0 and self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0:
             # Never saw new phrase, but have an old phrase of length 1 which appears somehwere in corpus
             alpha, beta = self.get_alpha(old_phrase)                # alpha_{w_{i-1}}
             pbo = alpha * self.all_gt[1][0].actual_count((wnew,)) / len(self.all_gt[1][0].corpus)   # alpha_{w_{i-1}} * Pbo(w_{i} | . )

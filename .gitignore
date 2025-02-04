@@ -138,3 +138,5 @@ data/nguyen*
 *.sh.sh
 scripts/copy_script.py
 *.sh.sh
+
+ESR/

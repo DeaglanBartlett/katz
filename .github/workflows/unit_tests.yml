@@ -1,0 +1,48 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ "main", "10-make-unit-tests" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+  
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
+      - name: Setup MPI
+        uses: mpi4py/setup-mpi@v1
+        with:
+          mpi: 'openmpi'
+      - name: Clone ESR repository
+        run: |
+          git clone https://github.com/DeaglanBartlett/ESR.git
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          pip install -e ESR
+          pip install -e .
+      - name: Test with pytest
+        run: |
+          pip install pytest pytest-cov
+          pytest --cov-report=xml --cov=katz tests/test_katz.py
+          cat coverage.xml
+        shell: bash
+
+      - name: Upload coverage report to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ${{ github.workspace }}/coverage.xml
+          # fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
