@@ -17,6 +17,7 @@ class TestKatzPrior(unittest.TestCase):
                            ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
                            ["+", "-", "*", "/", "pow"]]
         cls.kp_feynman = KatzPrior(n, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
+        cls.kp_feynman_no_input = KatzPrior(n, basis_functions, None, 'data/NewFeynman.csv')
 
         basis_functions = [["a", "x"],
                 ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh", "inv"],
@@ -46,6 +47,7 @@ class TestKatzPrior(unittest.TestCase):
         for eq, expected in zip(equations, expected_results):
             with self.subTest(eq=eq):
                 self.assertAlmostEqual(self.kp_feynman.logprior(eq), expected, places=4)
+                self.assertAlmostEqual(self.kp_feynman_no_input.logprior(eq), expected, places=4)
 
         # Physics prior
         expected_results = [np.float64(-9.135616417476996), np.float64(-3.0849759909660257), np.float64(-4.759488768141304), np.float64(-19.93661285074596)]
@@ -72,13 +74,16 @@ class TestKatzPrior(unittest.TestCase):
         for op, string in expected.items():
             with self.subTest(op=op):
                 self.assertEqual(self.kp_feynman.coder.op2str(op), string)
+                self.assertEqual(self.kp_feynman_no_input.coder.op2str(op), string)
                 self.assertEqual(self.kp_physics.coder.op2str(op), string)
 
         # Check unknown operator raises Exception
         bad_ops = ['unknown', 'Cosh', 'Sinh', 'garbage', 'y0', 'b2']
         for op in bad_ops:
             with self.assertRaises(Exception):
-                self.kp_feynamn.coder.op2str(op)
+                self.kp_feynman.coder.op2str(op)
+            with self.assertRaises(Exception):
+                self.kp_feynman_no_input.coder.op2str(op)
             with self.assertRaises(Exception):
                 self.kp_physics.coder.op2str(op)
 
