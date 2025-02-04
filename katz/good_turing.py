@@ -32,13 +32,18 @@ class GoodTuring:
         q = np.concatenate(([0], self.Nr[0,:-2]))
         t = self.Nr[0,1:]
         Zr[:-1] = self.Nr[1,:-1] / (0.5 * (t - q))
-        Zr[-1] = self.Nr[1,-1] / (self.Nr[0,-1] - self.Nr[0,-2])
+        if len(Zr) > 1:
+            Zr[-1] = self.Nr[1,-1] / (self.Nr[0,-1] - self.Nr[0,-2])
         self.Zr = Zr
         
         # Apply linear regression
-        res = scipy.stats.linregress(np.log(self.Nr[0,:]), np.log(self.Zr))
-        self.slope = res.slope
-        self.intercept = res.intercept
+        if len(self.Zr) > 1:
+            res = scipy.stats.linregress(np.log(self.Nr[0,:]), np.log(self.Zr))
+            self.slope = res.slope
+            self.intercept = res.intercept
+        else:
+            self.slope = 1
+            self.intercept = 0
         
     def get_S(self, r):
         """
