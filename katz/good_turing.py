@@ -1,7 +1,6 @@
 import collections
 import numpy as np
 import scipy.stats
-import matplotlib.pyplot as plt
 
 class GoodTuring:
 
@@ -80,18 +79,3 @@ class GoodTuring:
         """
         k = self.actual_count(word)
         return (k+1) * self.get_S(k+1) / self.get_S(k)
-
-    def plot_fit(self):
-        """
-        Plot a logZr-logr figure showing the linear fit used to obtain the smoothing for S
-        """
-        plt.figure()
-        plt.loglog(self.Nr[0,:], self.Zr, '.')
-        x = np.logspace(np.log10(self.Nr[0,0]), np.log10(self.Nr[0,-1]))
-        y = self.get_S(x)
-        plt.loglog(x, y)
-        plt.xlabel(r'$r$')
-        plt.ylabel(r'$Z_r$')
-        plt.tight_layout()
-        plt.show()
-        plt.clf()

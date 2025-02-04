@@ -25,10 +25,35 @@ class TestKatzPrior(unittest.TestCase):
 
     def test_logprior_list_equations(self):
         equations = [['+', 'x0', 'x0'], ['*', '2', 'x0'], ['+', 'x0', 'x1'], ['+', 'sin', 'x0', 'sin', 'x1']]
-        expected_results = [self.kp.logprior(eq) for eq in equations]
+        expected_results = [np.float64(-9.30695481431519), np.float64(-2.8626638924112906), np.float64(-5.474299859409948), np.float64(-18.45574760511283)]
         for eq, expected in zip(equations, expected_results):
             with self.subTest(eq=eq):
-                self.assertEqual(self.kp.logprior(eq), expected)
+                self.assertAlmostEqual(self.kp.logprior(eq), expected, places=4)
+
+    def test_op2str(self):
+        expected = {
+            'pi': 'a',
+            '0.5': 'a',
+            'x0': 'x',
+            'x1': 'x',
+            'a0': 'x',
+            'a1': 'x',
+            'Add': '+',
+            'Sub': '-',
+            'Mul': '*',
+            'Div': '/',
+            'Pow': 'pow',
+            'sin': 'sin',
+        }
+        for op, string in expected.items():
+            with self.subTest(op=op):
+                self.assertEqual(self.kp.coder.op2str(op), string)
+
+        # Check unknown operator raises Exception
+        bad_ops = ['unknown', 'Cosh', 'Sinh', 'garbage', 'y0', 'b2']
+        for op in bad_ops:
+            with self.assertRaises(Exception):
+                self.kp.coder.op2str(op)
 
 
 class TestESRPrior(unittest.TestCase):
@@ -52,7 +77,8 @@ class TestESRPrior(unittest.TestCase):
         os.makedirs(self.dirname, exist_ok=True)
         
         # Test get_logconst function
-        get_logconst(self.comp, self.dirname, overwrite=True)
+        for overwrite in [True, False]:
+            get_logconst(self.comp, self.dirname, overwrite=overwrite)
 
         # Check if the logconst file is created
         logconst_file = os.path.join(self.dirname, f'compl_{self.comp}', f'logconst_{self.comp}.txt')
@@ -61,9 +87,10 @@ class TestESRPrior(unittest.TestCase):
         for use_tree in [False, True]:
 
             # Test compute_logprior function
-            compute_logprior(self.comp, self.n, self.basis_functions, self.dirname, 
-                            self.in_eqfile, self.out_eqfile, overwrite=True, 
-                            input_delimiter=self.input_delimiter, use_tree=use_tree)
+            for overwrite in [True, False]:
+                compute_logprior(self.comp, self.n, self.basis_functions, self.dirname, 
+                                self.in_eqfile, self.out_eqfile, overwrite=overwrite, 
+                                input_delimiter=self.input_delimiter, use_tree=use_tree)
             
             # Check if equation file is created
             eq_file = os.path.join(self.dirname, f'compl_{self.comp}', f'all_equations_{self.comp}.txt')
