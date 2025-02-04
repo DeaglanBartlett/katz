@@ -35,7 +35,7 @@ def standardise_file(in_name, out_name, input_delimiter):
     Standardise the input equations used so that variables are named x0, x1, ..., x9
     
     Args:
-        :in_name (str): Name of file containing the equations to study
+        :in_name (str): Name of file containing the equations to study. If None, then equations read from out_eqfile
         :out_name (str): Name of file to output the new equations to
         :input_delimiter (str): The delimiter used in the input csv file
         
