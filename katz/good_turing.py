@@ -37,13 +37,9 @@ class GoodTuring:
         self.Zr = Zr
         
         # Apply linear regression
-        if len(self.Zr) > 1:
-            res = scipy.stats.linregress(np.log(self.Nr[0,:]), np.log(self.Zr))
-            self.slope = res.slope
-            self.intercept = res.intercept
-        else:
-            self.slope = 1
-            self.intercept = 0
+        res = scipy.stats.linregress(np.log(self.Nr[0,:]), np.log(self.Zr))
+        self.slope = res.slope
+        self.intercept = res.intercept
         
     def get_S(self, r):
         """
