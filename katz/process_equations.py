@@ -46,7 +46,7 @@ def standardise_file(in_name, out_name, input_delimiter):
     """
 
     df = pd.read_csv(in_name, delimiter=input_delimiter)
-    maxvar = int(df['# variables'].max()) + 1
+    maxvar = int(df['# variables'].max()) #+ 1
         
     all_eq = []
     
@@ -75,7 +75,8 @@ def standardise_file(in_name, out_name, input_delimiter):
             sub_dict = dict(zip(to_change,to_sub))
             split_eq = split_by_punctuation(eq)
             for i, s in enumerate(split_eq):
-                if s in to_change: split_eq[i] = sub_dict[s]
+                if s in to_change: 
+                    split_eq[i] = sub_dict[s]
             eq = ''.join(split_eq)
                 
             all_eq.append(eq)

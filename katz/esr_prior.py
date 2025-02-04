@@ -60,12 +60,8 @@ def get_functions(comp, dirname):
         
     """
 
-    if comp==8:
-        sys.setrecursionlimit(2000)
-    elif comp==9:
-        sys.setrecursionlimit(2500)
-    elif comp==10:
-        sys.setrecursionlimit(3000)
+    recursion_limits = {8: 2000, 9: 2500, 10: 3000}
+    sys.setrecursionlimit(recursion_limits.get(comp, sys.getrecursionlimit()))
     
     fname = dirname + f'/compl_{comp}/all_equations_{comp}.txt'
     
@@ -100,7 +96,6 @@ def get_trees(comp, dirname):
     data_start, data_end = get_indices(len(tree_list))
     
     tree_list = tree_list[data_start:data_end]
-    logconst = [None] * len(tree_list)
     for i in range(len(tree_list)):
         tree = tree_list[i].split("'")
         tree_list[i] = [tt for tt in tree if tt not in ["[", "]", " ", ", "]]

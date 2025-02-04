@@ -13,6 +13,14 @@ Katz
 .. image:: https://img.shields.io/badge/cs.LG-arXiv%32304.06333-B31B1B.svg
   :target: https://arxiv.org/abs/2304.06333
 
+.. image:: https://github.com/DeaglanBartlett/katz/actions/workflows/build.yml/badge.svg
+  :target: https://github.com/DeaglanBartlett/katz/actions/workflows/build.yml
+  :alt: Build Status
+
+.. image:: https://img.shields.io/codecov/c/github/DeaglanBartlett/katz
+  :target: https://app.codecov.io/gh/DeaglanBartlett/katz
+  :alt: Coverage
+
 About
 =====
 
