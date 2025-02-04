@@ -35,7 +35,7 @@ def standardise_file(in_name, out_name, input_delimiter):
     Standardise the input equations used so that variables are named x0, x1, ..., x9
     
     Args:
-        :in_name (str): Name of file containing the equations to study
+        :in_name (str): Name of file containing the equations to study. If None, then equations read from out_eqfile
         :out_name (str): Name of file to output the new equations to
         :input_delimiter (str): The delimiter used in the input csv file
         
@@ -45,43 +45,54 @@ def standardise_file(in_name, out_name, input_delimiter):
     
     """
 
-    df = pd.read_csv(in_name, delimiter=input_delimiter)
-    maxvar = int(df['# variables'].max()) #+ 1
-        
-    all_eq = []
-    
-    with open(out_name, 'w') as f:
-        csvwriter = csv.writer(f)
-        
-        csvwriter.writerow(['Filename', 'Number', 'Old Formula', 'New Formula'])
-    
-        for index, row in df.iterrows():
-        
-            if not np.isfinite(row['# variables']):
-                continue
-            eq = row['Formula'].replace(" ", "")
+    if in_name is None:
+
+        df = pd.read_csv(out_name, delimiter=input_delimiter)
+        all_eq = df['New Formula'].tolist()
+        maxvar = 0
+        for eq in all_eq:
+            f = split_by_punctuation(eq)
+            vars = [int(s[1:])+1 for s in f if s.startswith('x') and s[1:].isdigit()]
+            maxvar = max(maxvar, len(vars))
+    else:
+
+        df = pd.read_csv(in_name, delimiter=input_delimiter)
+        maxvar = int(df['# variables'].max()) #+ 1
             
-            # If equation already has variable 'x{i}" then we don't need to replace it
-            # Note: At least Eqs I.18.12, I.18.14 and II.37.1 in AIFeynman has wrong number of vars
-            # The next two lines fix this
-            vars = [row[f'v{i+1}_name'] for i in range(maxvar)]
-            vars = [v.replace(" ", "") for v in vars if isinstance(v, str)]
+        all_eq = []
+        
+        with open(out_name, 'w') as f:
+            csvwriter = csv.writer(f)
+            
+            csvwriter.writerow(['Filename', 'Number', 'Old Formula', 'New Formula'])
+        
+            for index, row in df.iterrows():
+            
+                if not np.isfinite(row['# variables']):
+                    continue
+                eq = row['Formula'].replace(" ", "")
                 
-            names = [f'x{i}' for i in range(len(vars))]
-            to_change = list(sorted(set(vars) - set(names), key=vars.index))
-            to_sub = list(sorted(set(names) - (set(vars) - set(to_change)), key=names.index))
-            
-            # Must split by punctuation to avoid replacing e.g. "t" in "sqrt" if we have a variable "t"
-            sub_dict = dict(zip(to_change,to_sub))
-            split_eq = split_by_punctuation(eq)
-            for i, s in enumerate(split_eq):
-                if s in to_change: 
-                    split_eq[i] = sub_dict[s]
-            eq = ''.join(split_eq)
+                # If equation already has variable 'x{i}" then we don't need to replace it
+                # Note: At least Eqs I.18.12, I.18.14 and II.37.1 in AIFeynman has wrong number of vars
+                # The next two lines fix this
+                vars = [row[f'v{i+1}_name'] for i in range(maxvar)]
+                vars = [v.replace(" ", "") for v in vars if isinstance(v, str)]
+                    
+                names = [f'x{i}' for i in range(len(vars))]
+                to_change = list(sorted(set(vars) - set(names), key=vars.index))
+                to_sub = list(sorted(set(names) - (set(vars) - set(to_change)), key=names.index))
                 
-            all_eq.append(eq)
-            
-            csvwriter.writerow([row['Filename'], row['Number'], row['Formula'], eq])
+                # Must split by punctuation to avoid replacing e.g. "t" in "sqrt" if we have a variable "t"
+                sub_dict = dict(zip(to_change,to_sub))
+                split_eq = split_by_punctuation(eq)
+                for i, s in enumerate(split_eq):
+                    if s in to_change: 
+                        split_eq[i] = sub_dict[s]
+                eq = ''.join(split_eq)
+                    
+                all_eq.append(eq)
+                
+                csvwriter.writerow([row['Filename'], row['Number'], row['Formula'], eq])
 
     return all_eq, maxvar
     

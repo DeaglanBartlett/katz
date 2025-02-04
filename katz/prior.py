@@ -10,7 +10,7 @@ class KatzPrior:
         Args:
             :n (int): The length of the n-tuples to consider
             :basis_functions (list): List of basis functions to consider. Entries 0, 1 and 2 are lists of nullary, unary, and binary operators, respectively.
-            :in_eqfile (str): Name of file containing the equations to study
+            :in_eqfile (str): Name of file containing the equations to study. If None, then equations read from out_eqfile
             :out_eqfile (str): Name of file to output the standardised equations to
             :input_delimiter (str): The delimiter used in the input csv file
             
