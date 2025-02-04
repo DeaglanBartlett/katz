@@ -45,31 +45,61 @@ class TestESRPrior(unittest.TestCase):
         cls.in_eqfile = 'data/FeynmanEquations.csv'
         cls.out_eqfile = 'data/NewFeynman.csv'
         cls.input_delimiter = ','
-        cls.use_tree = False
 
-    def test_get_logconst(self):
+    def test_compute_logprior(self):
+
         # Ensure the directory exists
         os.makedirs(self.dirname, exist_ok=True)
+        
         # Test get_logconst function
         get_logconst(self.comp, self.dirname, overwrite=True)
+
         # Check if the logconst file is created
         logconst_file = os.path.join(self.dirname, f'compl_{self.comp}', f'logconst_{self.comp}.txt')
         self.assertTrue(os.path.isfile(logconst_file))
 
-    def test_compute_logprior(self):
-        # Ensure the directory exists
-        os.makedirs(self.dirname, exist_ok=True)
-        # Test compute_logprior function
-        compute_logprior(self.comp, self.n, self.basis_functions, self.dirname, 
-                         self.in_eqfile, self.out_eqfile, overwrite=True, 
-                         input_delimiter=self.input_delimiter, use_tree=self.use_tree)
-        # Check if the logprior file is created
-        logprior_file = os.path.join(self.dirname, f'compl_{self.comp}', f'katz_logprior_{self.n}_{self.comp}.txt')
-        self.assertTrue(os.path.isfile(logprior_file))
-        # Check if the codelen file is created
-        codelen_file = os.path.join(self.dirname, f'compl_{self.comp}', f'katz_codelen_{self.n}_{self.comp}.txt')
-        self.assertTrue(os.path.isfile(codelen_file))
+        for use_tree in [False, True]:
 
+            # Test compute_logprior function
+            compute_logprior(self.comp, self.n, self.basis_functions, self.dirname, 
+                            self.in_eqfile, self.out_eqfile, overwrite=True, 
+                            input_delimiter=self.input_delimiter, use_tree=use_tree)
+            
+            # Check if equation file is created
+            eq_file = os.path.join(self.dirname, f'compl_{self.comp}', f'all_equations_{self.comp}.txt')
+            self.assertTrue(os.path.isfile(eq_file))
+            
+            # Check if the logprior file is created
+            logprior_file = os.path.join(self.dirname, f'compl_{self.comp}', f'katz_logprior_{self.n}_{self.comp}.txt')
+            self.assertTrue(os.path.isfile(logprior_file))
+            
+            # Check if the codelen file is created
+            codelen_file = os.path.join(self.dirname, f'compl_{self.comp}', f'katz_codelen_{self.n}_{self.comp}.txt')
+            self.assertTrue(os.path.isfile(codelen_file))
 
+            # Load equations and logprior values
+            logprior = np.loadtxt(logprior_file)
+            codelen = np.loadtxt(codelen_file)
+            with open(eq_file, 'r') as f:
+                equations = f.readlines()
+            equations = [eq.strip() for eq in equations]
+            self.assertEqual(len(equations), len(logprior), len(codelen))
+
+            # Check that equations with same string have same katz prior
+            if not use_tree:
+                unique_strings = {}
+                for index, string in enumerate(equations):
+                    if string not in unique_strings:
+                        unique_strings[string] = []
+                    unique_strings[string].append(index)
+                for indices in unique_strings.values():
+                    if np.isfinite(logprior[indices[0]]):
+                        self.assertTrue(np.all(logprior[indices] == logprior[indices[0]]))
+                    else:
+                        self.assertTrue(np.all(np.isnan(logprior[indices])))
+        
+            # Check that at least some values are finite
+            self.assertTrue(np.any(np.isfinite(logprior)))
+            
 if __name__ == '__main__':
     unittest.main()
