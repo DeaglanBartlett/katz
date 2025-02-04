@@ -100,7 +100,6 @@ def get_trees(comp, dirname):
     data_start, data_end = get_indices(len(tree_list))
     
     tree_list = tree_list[data_start:data_end]
-    logconst = [None] * len(tree_list)
     for i in range(len(tree_list)):
         tree = tree_list[i].split("'")
         tree_list[i] = [tt for tt in tree if tt not in ["[", "]", " ", ", "]]
