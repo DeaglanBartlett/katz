@@ -9,7 +9,8 @@ class GoodTuring:
         Class to perform Good-Turing frequency estimation
         
         Args:
-            :corpus (list): List of objects for which we want to produce Good-Turing frequency estimates. Each entry is considered a word
+            :corpus (list): List of objects for which we want to produce Good-Turing frequency estimates. 
+                Each entry is considered a word
             
         Returns:
             GoodTuring: Object to perform Good-Turing frequency estimates
@@ -34,12 +35,25 @@ class GoodTuring:
         Zr[:-1] = self.Nr[1,:-1] / (0.5 * (t - q))
         if len(Zr) > 1:
             Zr[-1] = self.Nr[1,-1] / (self.Nr[0,-1] - self.Nr[0,-2])
+        else:
+            # Single unique frequency level: no averaging possible, use count directly
+            Zr[-1] = self.Nr[1,-1]
         self.Zr = Zr
         
-        # Apply linear regression
-        res = scipy.stats.linregress(np.log(self.Nr[0,:]), np.log(self.Zr))
-        self.slope = res.slope
-        self.intercept = res.intercept
+        # Apply linear regression only when there are enough valid (finite) data points
+        log_r = np.log(self.Nr[0,:])
+        log_zr = np.log(self.Zr)
+        valid = np.isfinite(log_r) & np.isfinite(log_zr)
+        if valid.sum() >= 2:
+            res = scipy.stats.linregress(log_r[valid], log_zr[valid])
+            self.slope = res.slope
+            self.intercept = res.intercept
+        else:
+            # Insufficient data for regression: fall back to no discounting (d = 1).
+            # With slope=-1 and intercept=0: get_S(r) = 1/r, so
+            # expected_count = (k+1)*S(k+1)/S(k) = (k+1)*(1/(k+1))/(1/k) = k = actual_count.
+            self.slope = -1.0
+            self.intercept = 0.0
         
     def get_S(self, r):
         """
