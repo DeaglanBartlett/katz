@@ -30,13 +30,13 @@ class TestKatzPrior(unittest.TestCase):
         equations = ['x0**2', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))']
 
         # Feynman prior
-        expected_results = [np.float64(-3.19), np.float64(-18.46), np.float64(-17.20)]
+        expected_results = [np.float64(-2.3), np.float64(-18.5), np.float64(-17.3)]
         for eq, expected in zip(equations, expected_results):
             with self.subTest(eq=eq):
                 self.assertAlmostEqual(self.kp_feynman.logprior(eq), expected, places=1)
 
         # Physics prior
-        expected_results = [np.float64(-3.54), np.float64(-19.94), np.float64(-17.22)]
+        expected_results = [np.float64(-2.6), np.float64(-19.9), np.float64(-17.4)]
         for eq, expected in zip(equations, expected_results):
             with self.subTest(eq=eq):
                 self.assertAlmostEqual(self.kp_physics.logprior(eq), expected, places=1)
@@ -45,14 +45,14 @@ class TestKatzPrior(unittest.TestCase):
         equations = [['+', 'x0', 'x0'], ['*', '2', 'x0'], ['+', 'x0', 'x1'], ['+', 'sin', 'x0', 'sin', 'x1']]
 
         # Feynman prior
-        expected_results = [np.float64(-9.31), np.float64(-2.86), np.float64(-5.47), np.float64(-18.46)]
+        expected_results = [np.float64(-9.5), np.float64(-4.0), np.float64(-5.9), np.float64(-18.5)]
         for eq, expected in zip(equations, expected_results):
             with self.subTest(eq=eq):
                 self.assertAlmostEqual(self.kp_feynman.logprior(eq), expected, places=1)
                 self.assertAlmostEqual(self.kp_feynman_no_input.logprior(eq), expected, places=1)
 
         # Physics prior
-        expected_results = [np.float64(-9.14), np.float64(-3.08), np.float64(-4.76), np.float64(-19.94)]
+        expected_results = [np.float64(-9.2), np.float64(-4.0), np.float64(-5.5), np.float64(-19.9)]
         for eq, expected in zip(equations, expected_results):
             with self.subTest(eq=eq):
                 self.assertAlmostEqual(self.kp_physics.logprior(eq), expected, places=1)
@@ -277,6 +277,10 @@ class TestSparseKatzPrior(unittest.TestCase):
     This is the case that triggered NaN: the equation being evaluated is
     present in the corpus but get_pbo returned NaN because GoodTuring
     failed on single-bucket Nr arrays.
+
+    The right back-off model is now trained on full (parent, left_sibling,
+    right_child) tuples so that the query context correctly includes the
+    parent node, matching the fix to logprior.
     """
 
     # Minimal SimpleEquations-style CSV (semicolon-delimited)
@@ -323,7 +327,15 @@ class TestSparseKatzPrior(unittest.TestCase):
         self.assertLessEqual(p, 0.0)
 
     def test_logprior_expected_value(self):
-        """logprior must match the expected value for the minimal corpus."""
+        """logprior must match the expected value for the minimal corpus.
+
+        With n=2 and a single training equation the right back-off corpus
+        contains two 3-grams, each appearing exactly once.  The Good-Turing
+        fallback (d=1, no discounting) means both right-child probabilities
+        equal 1, contributing 0 to the log-prior.  The value is therefore
+        determined entirely by the left probabilities, which are unchanged
+        by this fix.
+        """
         p = self.kp.logprior(self.eq)
         self.assertAlmostEqual(p, -3.0, places=1)
 
