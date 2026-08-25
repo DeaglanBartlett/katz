@@ -1,47 +1,49 @@
 import collections
+
 import numpy as np
 import scipy.stats
+
 
 class GoodTuring:
 
     def __init__(self, corpus):
         """
         Class to perform Good-Turing frequency estimation
-        
+
         Args:
-            :corpus (list): List of objects for which we want to produce Good-Turing frequency estimates. 
+            :corpus (list): List of objects for which we want to produce Good-Turing frequency estimates.
                 Each entry is considered a word
-            
+
         Returns:
             GoodTuring: Object to perform Good-Turing frequency estimates
         """
-    
+
         # Store the data
         self.corpus = corpus
-    
+
         # Dict for frequency of each element
         self.R = dict(collections.Counter(corpus))
-        
+
         # Array for frequency of frequencies
         Nr = dict(collections.Counter(list(self.R.values())))
         Nr = np.array([list(Nr.keys()), list(Nr.values())])
-        idx = np.argsort(Nr[0,:])
-        self.Nr = Nr[:,idx]
-        
+        idx = np.argsort(Nr[0, :])
+        self.Nr = Nr[:, idx]
+
         # Apply smoothing to get Zr
         Zr = np.zeros(self.Nr.shape[1], dtype=float)
-        q = np.concatenate(([0], self.Nr[0,:-2]))
-        t = self.Nr[0,1:]
-        Zr[:-1] = self.Nr[1,:-1] / (0.5 * (t - q))
+        q = np.concatenate(([0], self.Nr[0, :-2]))
+        t = self.Nr[0, 1:]
+        Zr[:-1] = self.Nr[1, :-1] / (0.5 * (t - q))
         if len(Zr) > 1:
-            Zr[-1] = self.Nr[1,-1] / (self.Nr[0,-1] - self.Nr[0,-2])
+            Zr[-1] = self.Nr[1, -1] / (self.Nr[0, -1] - self.Nr[0, -2])
         else:
             # Single unique frequency level: no averaging possible, use count directly
-            Zr[-1] = self.Nr[1,-1]
+            Zr[-1] = self.Nr[1, -1]
         self.Zr = Zr
-        
+
         # Apply linear regression only when there are enough valid (finite) data points
-        log_r = np.log(self.Nr[0,:])
+        log_r = np.log(self.Nr[0, :])
         log_zr = np.log(self.Zr)
         valid = np.isfinite(log_r) & np.isfinite(log_zr)
         if valid.sum() >= 2:
@@ -54,30 +56,30 @@ class GoodTuring:
             # expected_count = (k+1)*S(k+1)/S(k) = (k+1)*(1/(k+1))/(1/k) = k = actual_count.
             self.slope = -1.0
             self.intercept = 0.0
-        
+
     def get_S(self, r):
         """
         Compute the smoothed frequency estimate, S
-        
+
         Args:
             :r (int): The number of occurences a given species was previous observed
-            
+
         Returns:
             :S (float): The smoothed/adjusted estimate for the number of objects which occur r times
         """
         return np.exp(self.slope * np.log(r) + self.intercept)
-        
+
     def actual_count(self, word):
         """
         Return the number of times word appeared in the corpus
-        
+
         Args:
             :word: The word whose frequency we wish to find
-            
+
         Returns:
             :int: The number of times this word appeared in the corpus
         """
-        if word in self.R.keys():
+        if word in self.R:
             return self.R[word]
         else:
             return 0
@@ -85,12 +87,12 @@ class GoodTuring:
     def expected_count(self, word):
         """
         Compute the predicted number of times a word should appear in a text equal to the length of the corpus
-        
+
         Args:
             :word: The word whose expected frequency we wish to find
-            
+
         Returns:
             float: The estimated freuqency of occurrence of this word in the corpus
         """
         k = self.actual_count(word)
-        return (k+1) * self.get_S(k+1) / self.get_S(k)
+        return (k + 1) * self.get_S(k + 1) / self.get_S(k)
