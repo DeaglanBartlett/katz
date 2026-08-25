@@ -1,4 +1,6 @@
 import os
+import ast
+import re
 import sys
 import numpy as np
 import itertools
@@ -94,11 +96,13 @@ def get_trees(comp, dirname):
     with open(fname, "r") as f:
         tree_list = f.read().splitlines()
     data_start, data_end = get_indices(len(tree_list))
-    
     tree_list = tree_list[data_start:data_end]
     for i in range(len(tree_list)):
-        tree = tree_list[i].split("'")
-        tree_list[i] = [tt for tt in tree if tt not in ["[", "]", " ", ", "]]
+        # Remove np.str_(...) wrappers
+        tree = re.sub(r"np\.str_\((['\"])(.*?)\1\)", r"\1\2\1", tree_list[i])
+        # Add commas between adjacent quoted strings
+        tree = re.sub(r"(['\"])\s+(['\"])", r"\1, \2", tree)
+        tree_list[i] = ast.literal_eval(tree)
         
     return tree_list
     
@@ -125,7 +129,7 @@ def get_logconst(comp, dirname, overwrite=False):
 
     tree_list = get_trees(comp, dirname)
     logconst = [None] * len(tree_list)
-    for i, tree in enumerate((tree_list)):
+    for i, tree in enumerate(tree_list):
         n = np.array([int(tt) for tt in tree if tt.lstrip("-").isdigit()])  # Integers
         n[n==0] = 1  # So we have log(1) for 0 instead of log(0)
         logconst[i] = np.sum(np.log(np.abs(n)))
