@@ -178,3 +178,49 @@ class BackOff:
             )
 
         return pbo
+
+
+class NormalisedBackOff:
+    """A fitted BackOff model with every conditional distribution made proper: negative
+    or non-finite probabilities are set to zero and the rest divided by their sum over the
+    vocabulary.
+
+    The Katz model of Bartlett et al. (2023) is not always normalised. When the seen
+    continuations of a context exhaust the support of the lower-order distribution, the mass
+    reserved for unseen words is lost (the sum over words is then below one); and when the
+    fitted Good-Turing slope is above -1, counts are inflated rather than discounted, which can
+    give probabilities above one and negative back-off weights (in very small corpora); a
+    zero denominator in a back-off weight gives NaN. KatzPrior applies this wrapper by
+    default (normalise=True); BackOff itself is unchanged, so KatzPrior(..., normalise=False)
+    gives the original model.
+
+    Args:
+        :model (BackOff): The fitted Katz back-off model
+        :vocab (list): Words over which each conditional distribution is normalised (default:
+            the words of the training corpus)
+
+    Returns:
+        NormalisedBackOff: Model with the same get_pbo interface
+    """
+
+    def __init__(self, model, vocab=None):
+        self.model = model
+        self.words = list(model.words if vocab is None else vocab)
+        self._dist = {}
+
+    def __getattr__(self, name):
+        # object.__getattribute__ so that a half-built instance (during unpickling or
+        # copying, before `model` is set) raises AttributeError instead of recursing
+        return getattr(object.__getattribute__(self, "model"), name)
+
+    def get_pbo(self, wnew, old_phrase):
+        """Normalised P(wnew | old_phrase); zero for words outside the vocabulary"""
+        h = tuple(old_phrase)
+        if h not in self._dist:
+            p = {}
+            for w in self.words:
+                v = float(self.model.get_pbo(w, h))
+                p[w] = v if v > 0 and v != float("inf") else 0.0  # also NaN -> 0
+            z = sum(p.values())
+            self._dist[h] = {w: v / z for w, v in p.items()} if z > 0 else {}
+        return self._dist[h].get(wnew, 0.0)

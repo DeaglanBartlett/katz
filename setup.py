@@ -1,8 +1,13 @@
+import re
+
 from setuptools import setup
+
+with open("katz/prior.py") as f:
+    version = re.search(r'^__version__ = "(.+)"', f.read(), re.M).group(1)
 
 setup(
     name="katz",
-    version="0.1.0",
+    version=version,
     description="A Python package to produce priors on functions",
     url="https://github.com/DeaglanBartlett/katz",
     author="Deaglan Bartlett",
@@ -13,6 +18,7 @@ setup(
         "esr",
         "numpy",
         "scipy",
+        "sympy>=1.14",  # the corpus parse, and so the prior, depends on it
         "matplotlib",
         "pandas",
         "sphinx>=5.0",

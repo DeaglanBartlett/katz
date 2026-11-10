@@ -7,6 +7,8 @@ basis_functions = [
     ["+", "-", "*", "/", "pow"],
 ]
 
+# Root context and normalised conditionals are the defaults; add root_context=False,
+# normalise=False for the model used in Bartlett et al. (2023)
 kp = KatzPrior(
     n, basis_functions, "../data/FeynmanEquations.csv", "../data/NewFeynman.csv"
 )

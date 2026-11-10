@@ -53,6 +53,8 @@ def main():
                 overwrite=True,
                 input_delimiter=input_delimiter,
                 use_tree=use_tree,
+                # the model of Bartlett et al. (2023)
+                prior_kwargs={"root_context": False, "normalise": False},
             )
 
 

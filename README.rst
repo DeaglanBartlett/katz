@@ -72,6 +72,67 @@ To generate a 2-gram prior from the `AI Feynman function set <https://space.mit.
             print(eq, p)
 
 
+Changes in version 0.2.0
+========================
+
+.. important::
+   Version 0.2.0 changes the default model. Published results that use this package
+   (`Bartlett, Desmond & Ferreira 2023 <https://arxiv.org/abs/2304.06333>`_ and its
+   applications) used the model of version 0.1.0; pass ``root_context=False, normalise=False``
+   to ``KatzPrior`` (or as ``prior_kwargs`` to ``katz.esr_prior.compute_logprior``) to
+   reproduce them, apart from the single-leaf correction below.
+
+* **Normalised conditional probabilities** (``normalise=True``, default). The back-off
+  probabilities of version 0.1.0 need not form a probability distribution. When the seen
+  continuations of a context exhaust the support of the lower-order distribution, the
+  probability reserved for unseen words is lost: trained on the physics corpus, the
+  right-child conditionals sum to as little as 0.90. In very small corpora a fitted
+  Good-Turing slope above -1 inflates the counts, giving probabilities above one or below
+  zero, and a zero denominator in a back-off weight gives NaN. Negative and non-finite values
+  are now set to zero and each conditional distribution is divided by its sum over the
+  vocabulary (``katz.back_off.NormalisedBackOff``).
+* **Root context** (``root_context=True``, default). Lineages that reach the root are padded
+  with a start-of-tree symbol, so the root and the nodes near it are predicted from their
+  position in the tree. In version 0.1.0 the root was predicted from the distribution of all
+  first children, which is dominated by leaves, whereas real roots are almost always ``*``,
+  ``/``, ``+`` or ``pow``.
+* Together these lower the held-out codelength of physics equations (leave one equation
+  family out, 159 equations) by 1.55 +/- 0.07, 1.94 +/- 0.10 and 2.12 +/- 0.14 nats per
+  equation at n = 2, 3 and 4. Normalisation alone contributes 0.04-0.06 nats.
+* On the recovery benchmark of Bartlett et al. (2023) (ESR fits up to complexity 7 of
+  Nguyen-8 and Korns-1, 4, 6 and 7 mocks; 7 sample sizes and 5 noise realisations each, 175
+  mocks), the generating function is ranked first in 54% of mocks at n = 2 and 61% at
+  n = 3 with the new defaults, against 42% with the model of version 0.1.0 (n = 2) and 52%
+  with ESR's default k log n function codelength. The gain comes from the root context: at
+  n = 3 without it 43% are recovered. Normalisation changes the verdict for 1 of the 175
+  mocks. Most of the gain is on Nguyen-8 (sqrt(x)), recovered in 20% of mocks by the old
+  model and in 63% (n = 2) and 91% (n = 3) by the new one; Korns-6 is recovered by none of
+  the Katz priors.
+* **Single-leaf functions.** A function that is a single leaf (a variable or a constant)
+  counted its root event twice, both when scored and when it was a training equation. For
+  corpora without single-leaf equations, including those in ``data/``, a single-leaf
+  function's log-prior in the original representation is now half its previous value, and no
+  other prior changes. For corpora containing single-leaf equations, the corrected training
+  counts can also change the priors of other functions.
+* **sympy >= 1.14 is required.** The trees of the corpus equations, and so the prior, depend
+  on the sympy version: older versions pull a numerical factor out of some square roots
+  (e.g. ``sqrt(2*x0**2 + 4*x1)``), which changes the trees of 6 of the 161 physics and 2 of the
+  100 Feynman equations. The reference values of the tests are for sympy >= 1.14.
+* **Bug fixes that change no prior of the published model for the corpora in** ``data/``: a
+  bare variable (``x0``) could not be split into tokens; ``standardise_file`` with
+  ``in_eqfile=None`` counted variable
+  occurrences rather than variables; variables and parameters beyond the corpus's variable
+  range (e.g. ``x12`` for a corpus in ``x0``-``x10``) were not declared real, so
+  ``sqrt(x12**2)`` was not simplified and could fail to convert to a tree; a lower-case
+  ``abs`` was not stripped; the order of the nullary basis depended on Python's string
+  hashing; a corpus without binary operators failed with ``max() arg is an empty sequence``.
+* ``katz.esr_prior``: output files are named by configuration (``katz``, ``katz_noroot``,
+  ``katz_noroot_unnorm``, ...) and reused only if a JSON manifest shows that the prior
+  configuration, the corpus, the candidate functions, the constant penalties, the scoring code
+  and the katz and sympy versions are unchanged; rank 0 alone writes the standardised corpus;
+  functions that cannot be scored are NaN and counted; outputs are written atomically.
+* ``KatzPrior(..., equations=[...])`` takes the corpus as a list of equations instead of a file.
+
 Licence and Citation
 ====================
 
