@@ -53,9 +53,9 @@ def main():
                 overwrite=True,
                 input_delimiter=input_delimiter,
                 use_tree=use_tree,
-                # the model of version 0.2.1; the priors of Bartlett et al. (2023) need
-                # version 0.1.0 (see README)
-                prior_kwargs={"root_context": False, "normalise": False},
+                # the Katz model of version 0.2.1; the priors of Bartlett et al. (2023)
+                # need version 0.1.0 (see README)
+                prior_kwargs={"smoothing": "katz", "root_context": False, "normalise": False},
             )
 
 

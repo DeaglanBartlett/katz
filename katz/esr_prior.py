@@ -139,6 +139,21 @@ def _dump_json_atomic(path, obj):
     os.replace(tmp, path)
 
 
+def _scoring_sources():
+    """Source files that determine the scores, including the equation parser"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    names = (
+        "prior.py",
+        "kneser_ney.py",
+        "back_off.py",
+        "good_turing.py",
+        "process_equations.py",
+        "tree_parser.py",
+        "esr_prior.py",
+    )
+    return [os.path.join(here, name) for name in sorted(names)]
+
+
 def _code_fingerprint(path):
     """The parsed code of a Python source file without its docstrings, so that changes to
     formatting, comments or docstrings leave it unchanged"""
@@ -160,25 +175,12 @@ def _code_fingerprint(path):
 
 
 def _code_sha256():
-    """SHA-256 of the code that determines the scores: the katz modules and ESR's equation
-    parser (esr.generation.generator), whose trees the prior scores. Only the parsed code
-    enters (see _code_fingerprint), so reformatting or editing comments and docstrings does
-    not invalidate saved priors"""
+    """SHA-256 of the code that determines the scores (_scoring_sources). Only the parsed
+    code enters (see _code_fingerprint), so reformatting or editing comments and docstrings
+    does not invalidate saved priors"""
     import hashlib
 
-    from esr.generation import generator as esr_generator
-
-    here = os.path.dirname(os.path.abspath(__file__))
-    names = (
-        "prior.py",
-        "back_off.py",
-        "good_turing.py",
-        "process_equations.py",
-        "esr_prior.py",
-    )
-    paths = [os.path.join(here, name) for name in sorted(names)] + [
-        esr_generator.__file__
-    ]
+    paths = _scoring_sources()
     h = hashlib.sha256()
     for path in paths:
         code = _code_fingerprint(path)
@@ -284,13 +286,30 @@ def _prior_config(n, basis_functions, prior_kwargs):
     """Complete (JSON-serialisable) configuration of the KatzPrior built by compute_logprior"""
     import inspect
 
+    from katz.prior import DEFAULT_KN_DISCOUNT
+
     defaults = {
         k: v.default
         for k, v in inspect.signature(KatzPrior.__init__).parameters.items()
         if v.default is not inspect.Parameter.empty
     }
     cfg = {
-        k: bool(prior_kwargs.get(k, defaults[k])) for k in ("root_context", "normalise")
+        k: str(prior_kwargs.get(k, defaults[k])) for k in ("smoothing", "right_backoff")
+    }
+    cfg.update(
+        {
+            k: bool(prior_kwargs.get(k, defaults[k]))
+            for k in ("root_context", "normalise", "code_constants")
+        }
+    )
+    if cfg["smoothing"] == "kn":
+        cfg.pop("normalise")  # Kneser-Ney is normalised by construction
+    skw = dict(prior_kwargs.get("smoothing_kwargs") or {})
+    if cfg["smoothing"] == "kn":
+        skw.setdefault("discounts", DEFAULT_KN_DISCOUNT)
+    cfg["smoothing_kwargs"] = {
+        k: np.asarray(v).tolist() if not isinstance(v, str) else v
+        for k, v in skw.items()
     }
     cfg["n"] = int(n)
     cfg["basis_functions"] = [list(b) for b in basis_functions]
@@ -298,14 +317,20 @@ def _prior_config(n, basis_functions, prior_kwargs):
 
 
 def default_label(prior_kwargs):
-    """Output-file prefix for a prior configuration: 'katz' plus the non-default options,
-    e.g. 'katz', 'katz_noroot', 'katz_noroot_unnorm' (the model of version 0.2.1; the priors of
-    Bartlett et al. 2023 need version 0.1.0)"""
-    label = "katz"
+    """Output-file prefix for a prior configuration: the smoothing method plus the
+    non-default options, e.g. 'kn', 'kn_const', 'katz', 'katz_noroot_unnorm' (the last is the
+    Katz model of version 0.2.1; the priors of Bartlett et al. 2023 need version 0.1.0)
+    """
+    smoothing = prior_kwargs.get("smoothing", "kn")
+    label = smoothing
     if not prior_kwargs.get("root_context", True):
         label += "_noroot"
-    if not prior_kwargs.get("normalise", True):
+    if smoothing == "katz" and not prior_kwargs.get("normalise", True):
         label += "_unnorm"
+    if prior_kwargs.get("code_constants", False):
+        label += "_const"
+    if prior_kwargs.get("right_backoff", "sibling") == "parent":
+        label += "_parent"
     return label
 
 
@@ -329,9 +354,10 @@ def compute_logprior(
     the sum(log(c_i)) terms for constants c_i which appear in the equations. A manifest
     {label}_prior_{n}_{comp}.json records the prior configuration; hashes of the corpus, of
     the candidate functions (all_equations_{comp}.txt or trees_{comp}.txt), of the
-    constant-penalty file logconst_{comp}.txt, of the scoring source code (the katz modules and
-    ESR's equation parser) and of both outputs; the katz and sympy versions; and the number of functions that could not be
-    scored (NaN in the output; a function with zero prior probability has -log(prior) = inf).
+    constant-penalty file logconst_{comp}.txt, of the scoring source code (the katz modules,
+    including the equation parser) and of both outputs; the katz and sympy versions; and the
+    number of functions that could not be scored (NaN in the output; a function with zero
+    prior probability has -log(prior) = inf).
     Existing output is reused only if all of these match. Outputs are written atomically and
     the manifest last.
 
@@ -345,8 +371,8 @@ def compute_logprior(
         :overwrite (bool): Whether to overwrite files if they already exist
         :input_delimiter (str): The delimiter used in the input csv file
         :use_tree (bool, default=False): Whether to compute the prior using the tree representation from file (True) or using the string representation (False) and convert this to a tree automatically.
-        :prior_kwargs (dict, default=None): Extra keyword arguments passed to KatzPrior (e.g. {'root_context': False, 'normalise': False} for the model of version 0.2.1; the priors of Bartlett et al. 2023 need version 0.1.0, see README)
-        :label (str, default=None): Prefix of the output files, so that priors from different models are not overwritten. If None, default_label(prior_kwargs) is used: 'katz' followed by '_noroot' and '_unnorm' for non-default options.
+        :prior_kwargs (dict, default=None): Extra keyword arguments passed to KatzPrior (e.g. {'smoothing': 'katz', 'root_context': False, 'normalise': False} for the Katz model of version 0.2.1; the priors of Bartlett et al. 2023 need version 0.1.0, see README; the default is Kneser-Ney)
+        :label (str, default=None): Prefix of the output files, so that priors from different models are not overwritten. If None, default_label(prior_kwargs) is used: the smoothing method ('kn' or 'katz') followed by '_noroot', '_unnorm' (Katz only), '_const' and '_parent' for non-default options.
 
     Returns:
         :None

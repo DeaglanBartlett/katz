@@ -2,16 +2,30 @@ import itertools
 import os
 import tempfile
 import unittest
-from typing import ClassVar
 
-import esr
-import esr.generation.duplicate_checker
 import numpy as np
 
-from katz import esr_prior
+try:  # ESR is needed only to compare the built-in parser with it and for TestESRPrior
+    import esr
+    import esr.generation.duplicate_checker
+    import esr.generation.generator
+
+    HAVE_ESR = True
+except ImportError:
+    HAVE_ESR = False
+
+try:  # katz.esr_prior needs mpi4py
+    from katz import esr_prior
+    from katz.esr_prior import compute_logprior, default_label, get_logconst
+
+    HAVE_MPI = True
+except ImportError:
+    HAVE_MPI = False
+
+from katz import tree_parser
 from katz.back_off import BackOff
-from katz.esr_prior import compute_logprior, default_label, get_logconst
 from katz.good_turing import GoodTuring
+from katz.kneser_ney import KneserNey, chen_goodman_discounts
 from katz.prior import KatzPrior
 from katz.process_equations import (
     SymbolCoder,
@@ -48,7 +62,7 @@ class TestKatzPrior(unittest.TestCase):
             ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
             ["+", "-", "*", "/", "pow"],
         ]
-        # Reference values below are for the model of version 0.2.1
+        # Reference values below are for the Katz model of version 0.2.1
         cls.kp_feynman = KatzPrior(
             n,
             basis_functions,
@@ -56,6 +70,7 @@ class TestKatzPrior(unittest.TestCase):
             "data/NewFeynman.csv",
             root_context=False,
             normalise=False,
+            smoothing="katz",
         )
         cls.kp_feynman_no_input = KatzPrior(
             n,
@@ -64,6 +79,7 @@ class TestKatzPrior(unittest.TestCase):
             "data/NewFeynman.csv",
             root_context=False,
             normalise=False,
+            smoothing="katz",
         )
 
         basis_functions = [
@@ -79,6 +95,7 @@ class TestKatzPrior(unittest.TestCase):
             input_delimiter=";",
             root_context=False,
             normalise=False,
+            smoothing="katz",
         )
 
     def test_logprior_string_equations(self):
@@ -231,6 +248,7 @@ class TestBackOff(unittest.TestCase):
                 self.assertEqual(self.bo.get_pbo(word, ()), 0)
 
 
+@unittest.skipUnless(HAVE_ESR and HAVE_MPI, "needs ESR and mpi4py")
 class TestESRPrior(unittest.TestCase):
 
     @classmethod
@@ -270,8 +288,11 @@ class TestESRPrior(unittest.TestCase):
         for use_tree, (label, prior_kwargs) in itertools.product(
             [False, True],
             [
-                ("katz_noroot_unnorm", {"root_context": False, "normalise": False}),
-                ("katz", None),
+                (
+                    "katz_noroot_unnorm",
+                    {"smoothing": "katz", "root_context": False, "normalise": False},
+                ),
+                ("kn", None),
             ],
         ):
 
@@ -348,11 +369,19 @@ class TestESRPrior(unittest.TestCase):
         import json
 
         get_logconst(self.comp, self.dirname, overwrite=False)
-        self.assertEqual(default_label({}), "katz")
-        self.assertEqual(default_label({"root_context": False}), "katz_noroot")
-        self.assertEqual(default_label({"normalise": False}), "katz_unnorm")
+        self.assertEqual(default_label({}), "kn")
         self.assertEqual(
-            default_label({"root_context": False, "normalise": False}),
+            default_label({"normalise": False}), "kn"
+        )  # KN is always normalised
+        self.assertEqual(default_label({"code_constants": True}), "kn_const")
+        self.assertEqual(default_label({"smoothing": "katz"}), "katz")
+        self.assertEqual(
+            default_label({"smoothing": "katz", "root_context": False}), "katz_noroot"
+        )
+        self.assertEqual(
+            default_label(
+                {"smoothing": "katz", "root_context": False, "normalise": False}
+            ),
             "katz_noroot_unnorm",
         )
         base = os.path.join(self.dirname, f"compl_{self.comp}", "")
@@ -374,7 +403,7 @@ class TestESRPrior(unittest.TestCase):
             with open(manifest_file) as f:
                 manifest = json.load(f)
             self.assertEqual(manifest["config"]["root_context"], rc)
-            self.assertTrue(manifest["config"]["normalise"])
+            self.assertEqual(manifest["config"]["smoothing_kwargs"]["discounts"], 0.8)
             self.assertEqual(manifest["n_failed"], 0)
             results.append((np.loadtxt(prior_file), os.path.getmtime(prior_file)))
         # A different configuration under the same label is recomputed...
@@ -515,6 +544,7 @@ class TestSparseKatzPrior(unittest.TestCase):
             input_delimiter=";",
             root_context=False,
             normalise=False,
+            smoothing="katz",
         )
         cls.eq = "sin(x0) + sin(x0 - x1)"
 
@@ -553,38 +583,152 @@ class TestSparseKatzPrior(unittest.TestCase):
         self.assertIn("sin(x0)+sin(x0-x1)", df["New Formula"].tolist())
 
 
+class TestKneserNey(unittest.TestCase):
+
+    def test_short_history(self):
+        # a history shorter than order - 1 words is used in full, and an unseen extra
+        # word in front of it backs off to the same distribution
+        m = KneserNey(
+            [("a", "b", "x")] * 10 + [("c", "b", "y")] * 10, order=4, discounts=0.5
+        )
+        p = (
+            9.5 / 10 + (0.5 / 10) * 0.5
+        )  # (c(abx) - D)/c(ab.) + D N1+(ab.)/c(ab.) P(x|b)
+        self.assertAlmostEqual(m.prob("x", ("a", "b")), p, places=12)
+        self.assertAlmostEqual(m.prob("x", ("q", "a", "b")), p, places=12)
+        self.assertAlmostEqual(m.prob("x", ("b",)), 0.5, places=12)
+
+    def test_worked_example(self):
+        """Two bigrams seen once each: an unseen bigram keeps a share of the mass"""
+        kn = KneserNey([("sin", "x"), ("cos", "y")], discounts=0.75)
+        self.assertAlmostEqual(kn.prob("x", ("sin",)), 0.625)
+        self.assertAlmostEqual(kn.prob("y", ("sin",)), 0.375)
+
+    def test_hand_computed_trigram(self):
+        """Compare against a hand calculation with a fixed discount D = 0.5"""
+        corpus = [
+            ("a", "b", "c"),
+            ("a", "b", "c"),
+            ("d", "b", "c"),
+            ("a", "b", "e"),
+            ("b", "e"),  # shorter event: raw count at order 2
+        ]
+        kn = KneserNey(corpus, order=3, vocab=["z"], discounts=0.5)
+        # Order 1: continuation counts c=1, e=1; gamma = 0.5; uniform over {c, e, z}
+        p1 = {"c": 0.25 + 0.5 / 3, "e": 0.25 + 0.5 / 3, "z": 0.5 / 3}
+        for w, p in p1.items():
+            self.assertAlmostEqual(kn.prob(w, ()), p)
+        # Order 2, context b: adjusted counts (b,c)=2 [types a,d], (b,e)=2 [raw 1 + type a]
+        p2 = {w: (2 - 0.5) / 4 * (w != "z") + 0.25 * p1[w] for w in p1}
+        for w, p in p2.items():
+            self.assertAlmostEqual(kn.prob(w, ("b",)), p)
+        # Order 3, context (a, b): raw counts c=2, e=1
+        p3 = {"c": 1.5 / 3 + p2["c"] / 3, "e": 0.5 / 3 + p2["e"] / 3, "z": p2["z"] / 3}
+        for w, p in p3.items():
+            self.assertAlmostEqual(kn.prob(w, ("a", "b")), p)
+        self.assertAlmostEqual(kn.prob("c", ("d", "b")), 0.5 + 0.5 * p2["c"])
+        # Unseen context backs off to the longest seen suffix
+        self.assertAlmostEqual(kn.prob("c", ("q", "b")), p2["c"])
+        # Contexts longer than order - 1 are truncated
+        self.assertAlmostEqual(kn.prob("c", ("q", "a", "b")), p3["c"])
+        self.assertEqual(kn.get_pbo("c", ("a", "b")), kn.prob("c", ("a", "b")))
+
+    def test_normalisation_and_positivity(self):
+        rng = np.random.default_rng(42)
+        V = list("abcdef")
+        corpus = [tuple(rng.choice(V, size=rng.integers(1, 5))) for _ in range(200)]
+        for discounts in ["mkn", "kn", 0.3, [0.2, 0.5, 0.9, 0.7]]:
+            kn = KneserNey(corpus, order=4, vocab=V + ["g"], discounts=discounts)
+            for L in range(4):
+                for h in itertools.product(V + ["g"], repeat=L):
+                    p = np.array([kn.prob(w, h) for w in kn.vocab])
+                    with self.subTest(discounts=discounts, h=h):
+                        self.assertAlmostEqual(p.sum(), 1.0, places=12)
+                        self.assertTrue(np.all(p > 0))
+        self.assertEqual(kn.prob("unknown", ()), 0.0)
+
+    def test_continuation_counts(self):
+        """A frequent word seen in a single context gets less lower-order mass than a
+        rarer word seen in many contexts (and vice versa for raw unigram frequency)"""
+        corpus = [("s", "f")] * 10 + [(c, "g") for c in "abcde"]
+        kn = KneserNey(corpus, order=2, discounts=0.5)
+        self.assertLess(kn.prob("f", ()), kn.prob("g", ()))
+        self.assertLess(kn.prob("f", ("q",)), kn.prob("g", ("q",)))
+        self.assertGreater(kn.prob("f", ("s",)), 0.9)
+
+    def test_chen_goodman_discounts(self):
+        D = chen_goodman_discounts({1: 10, 2: 5, 3: 3, 4: 2})
+        np.testing.assert_allclose(D, [0.5, 1.1, 3 - 4 * 0.5 * 2 / 3])
+        # Undefined estimates fall back to 0.5 and estimates are clipped to [1e-3, r]
+        np.testing.assert_allclose(chen_goodman_discounts({3: 1}), [0.5, 0.5, 0.5])
+        D = chen_goodman_discounts({1: 1, 2: 1, 3: 100, 4: 1})
+        self.assertTrue(np.all(D >= 1e-3) and np.all(D <= [1, 2, 3]))
+
+    def test_discount_options(self):
+        corpus = [("a", "b"), ("a", "c"), ("b", "c"), ("c",)]
+        kn = KneserNey(corpus, discounts=[[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        np.testing.assert_allclose(kn.discounts[1:], [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        kn = KneserNey(corpus, discounts=0.9, discount_scale=2.0)
+        np.testing.assert_allclose(kn.discounts[1:], [[1.0, 1.8, 1.8]] * 2)
+        with self.assertRaises(ValueError):
+            KneserNey(corpus, discounts="bad")
+        with self.assertRaises(ValueError):
+            KneserNey([])
+
+
 class TestKatzPriorOptions(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.basis_functions = BASIS
         cls.kp = KatzPrior(2, cls.basis_functions, None, "data/NewPhysics.csv")
+        cls.kp_kn = cls.kp
 
     def test_defaults(self):
-        """Root context and normalisation are on by default; switching both off gives the
-        model of version 0.2.1"""
+        """Kneser-Ney with root context is the default; Katz is normalised by default, and
+        smoothing='katz', root_context=False, normalise=False gives the model of version
+        0.2.1"""
         from katz.back_off import NormalisedBackOff
 
-        self.assertTrue(self.kp.root_context and self.kp.normalise)
-        self.assertIsInstance(self.kp.backoff_left, NormalisedBackOff)
+        self.assertEqual(self.kp.smoothing, "kn")
+        self.assertTrue(self.kp.root_context)
+        katz = KatzPrior(
+            2, self.basis_functions, equations=self.kp.all_eq, smoothing="katz"
+        )
+        self.assertIsInstance(katz.backoff_left, NormalisedBackOff)
         orig = KatzPrior(
             2,
             self.basis_functions,
             equations=self.kp.all_eq,
+            smoothing="katz",
             root_context=False,
             normalise=False,
         )
         self.assertIsInstance(orig.backoff_left, BackOff)
         for eq in ["x0**2", "sin(x0) + x1"]:
             with self.subTest(eq=eq):
-                self.assertTrue(np.isfinite(self.kp.logprior(eq)))
-                self.assertNotEqual(self.kp.logprior(eq), orig.logprior(eq))
+                self.assertTrue(np.isfinite(katz.logprior(eq)))
+                self.assertNotEqual(katz.logprior(eq), orig.logprior(eq))
+        with self.assertRaises(
+            ValueError
+        ):  # Katz takes normalise=, not smoothing_kwargs
+            KatzPrior(
+                2,
+                self.basis_functions,
+                equations=["x0 + x1"],
+                smoothing="katz",
+                smoothing_kwargs={"normalise": True},
+            )
 
     def test_equations_argument(self):
         """Building from a list of equations matches building from the file"""
         kp = KatzPrior(2, self.basis_functions, equations=self.kp.all_eq)
         for eq in ["x0**2", "sin(x0)*exp(x1)", "x0 + 3*x1"]:
             self.assertEqual(kp.logprior(eq), self.kp.logprior(eq))
+        with self.assertRaises(ValueError):
+            KatzPrior(2, self.basis_functions, equations=["x0"], smoothing="bad")
+        with self.assertRaises(ValueError):
+            KatzPrior(2, self.basis_functions, equations=["x0"], right_backoff="bad")
 
     def test_root_context(self):
         n = 2
@@ -602,27 +746,230 @@ class TestKatzPriorOptions(unittest.TestCase):
 
     def test_single_leaf(self):
         """A single-leaf function contributes exactly one (root) event"""
-        for rc, norm in itertools.product([False, True], [False, True]):
+        for rc, (sm, norm) in itertools.product(
+            [False, True], [("katz", False), ("katz", True), ("kn", True)]
+        ):
             kp = KatzPrior(
                 2,
                 self.basis_functions,
                 equations=self.kp.all_eq[:40],
                 root_context=rc,
                 normalise=norm,
+                smoothing=sm,
             )
             for eq in ["x0", "a0", ["x0"], ["a0"]]:
-                with self.subTest(root_context=rc, normalise=norm, eq=eq):
+                with self.subTest(root_context=rc, smoothing=sm, normalise=norm, eq=eq):
                     t = kp.coder.process_all_equations(3, [eq], kp.maxvar)
                     self.assertEqual(len(t), 1)
                     root = t[0]
                     p = kp.backoff_left.get_pbo(root[-1], root[:-1])
                     self.assertAlmostEqual(kp.logprior(eq), np.log(p))
 
+    def test_second_leaf_follows_leaf(self):
+        # "y" (a leaf that differs from its left sibling) can only follow an "x": the
+        # normalised Katz and the Kneser-Ney models give it zero probability after any other
+        # left sibling, wherever right_backoff puts the sibling in the context
+        eqs = list(self.kp.all_eq)
+        for smoothing in ("kn", "katz"):
+            for rb in ("sibling", "parent"):
+                for n in (2, 3):
+                    kp = KatzPrior(
+                        n,
+                        self.basis_functions,
+                        equations=eqs,
+                        smoothing=smoothing,
+                        right_backoff=rb,
+                    )
+                    x, y = kp.coder.code["x"], kp.coder.code["y"]
+                    pos = -1 if rb == "sibling" else 0
+                    ctxs = {
+                        tuple(tt[-(n + 1) : -1])
+                        for t in kp.eq_tuples
+                        for tt in kp.split_events(t)[1]
+                    }
+                    seen = set()
+                    for h in ctxs:
+                        p = [kp.backoff_right.get_pbo(w, h) for w in kp.vocab_right]
+                        self.assertAlmostEqual(sum(p), 1.0, places=12)
+                        py = kp.backoff_right.get_pbo(y, h)
+                        if h[pos] == x:
+                            self.assertGreater(py, 0)
+                        else:
+                            self.assertEqual(py, 0.0)
+                        seen.add(h[pos] == x)
+                    self.assertEqual(seen, {True, False})
+                    self.assertTrue(all(np.isfinite(kp.logprior(e)) for e in eqs[:20]))
+                    if smoothing == "kn":
+                        kp.tune_discounts("single", k=3, grid=[0.5, 0.8])
+                        h = next(h for h in ctxs if h[pos] != x)
+                        self.assertEqual(kp.backoff_right.get_pbo(y, h), 0.0)
+
+    def test_kn_finite_and_normalised(self):
+        eqs = list(self.kp_kn.all_eq[:20]) + [
+            "arccos(arccos(arccos(x0)))",
+            "tanh(tanh(x0))",
+            "sin(x0) + sin(x1)",
+        ]
+        for eq in eqs:
+            with self.subTest(eq=eq):
+                p = self.kp_kn.logprior(eq)
+                self.assertTrue(np.isfinite(p) and p < 0)
+        for model, vocab in [
+            (self.kp_kn.backoff_left, self.kp_kn.vocab_left),
+            (self.kp_kn.backoff_right, self.kp_kn.vocab_right),
+        ]:
+            contexts = set()
+            for k in range(1, model.order + 1):
+                contexts.update(model.total[k].keys())
+            for h in contexts:
+                self.assertAlmostEqual(sum(model.prob(w, h) for w in vocab), 1.0, 12)
+
+    def test_code_constants(self):
+        eqs = ["pow(x0, a0)", "pow(a0, x0)"]
+        for flag in [False, True]:
+            kp = KatzPrior(
+                2, self.basis_functions, equations=["x0**2"], code_constants=flag
+            )
+            t = [kp.coder.process_all_equations(3, [eq], 1) for eq in eqs]
+            with self.subTest(code_constants=flag):
+                if flag:
+                    self.assertNotEqual(t[0], t[1])
+                    self.assertIn(kp.coder.code["a"], t[0][1])
+                else:
+                    self.assertEqual(t[0], t[1])
+
+    def test_right_backoff_needs_two_words(self):
+        with self.assertRaises(ValueError):
+            KatzPrior(
+                1,
+                self.basis_functions,
+                equations=["x0 + sin(x1)"],
+                right_backoff="parent",
+            )
+
+    def test_right_backoff(self):
+        n = 2
+        kp = KatzPrior(
+            n,
+            self.basis_functions,
+            equations=self.kp_kn.all_eq[:30],
+            right_backoff="parent",
+        )
+        code = kp.coder.code
+        t = kp.coder.process_all_equations(n + 1, ["x0 + sin(x1)"], 2)
+        _, right = kp.split_events(t)
+        # (parent, left sibling, right) -> (left sibling, parent, right)
+        self.assertEqual(right[0], (code["x"], code["+"], code["sin"]))
+        self.assertTrue(np.isfinite(kp.logprior("x0 + sin(x1)")))
+
+    def test_tune_discounts_overrides_scale(self):
+        # tuned absolute discounts are applied without a discount_scale given at
+        # construction, which the cross-validation did not use
+        kp = KatzPrior(
+            2,
+            self.basis_functions,
+            equations=self.kp_kn.all_eq[:40],
+            smoothing_kwargs={"discount_scale": 0.5},
+        )
+        for method, grid in (("single", [0.4]), ("count", [(0.4, 0.9)])):
+            with self.subTest(method=method):
+                res = kp.tune_discounts(method, k=3, grid=grid)
+                D = np.asarray(res["left"]["discounts"])
+                self.assertTrue(
+                    np.allclose(
+                        kp.backoff_left.discounts[1:],
+                        np.broadcast_to(D, (3, 3)) if D.ndim else D,
+                    )
+                )
+
+    def test_tune_discounts(self):
+        kp = KatzPrior(
+            2,
+            self.basis_functions,
+            equations=self.kp_kn.all_eq,
+            smoothing="kn",
+            root_context=True,
+        )
+        res = kp.tune_discounts("single", k=5, grid=np.linspace(0.1, 1.0, 10))
+        for side in ("left", "right"):
+            self.assertTrue(0.1 <= res[side]["discounts"] <= 1.0)
+        # Chosen discounts are applied to the refitted models
+        self.assertAlmostEqual(
+            kp.backoff_left.discounts[1, 0], res["left"]["discounts"]
+        )
+        self.assertAlmostEqual(
+            kp.backoff_right.discounts[2, 2], res["right"]["discounts"]
+        )
+        # Minimum of the CV curve is at the chosen value
+        j = np.argmin(res["cv_nll"][0])
+        self.assertAlmostEqual(res["grid"][j], res["left"]["discounts"])
+        res = kp.tune_discounts("scale", k=3, grid=[0.5, 1.0])
+        self.assertIn(res["right"]["discount_scale"], [0.5, 1.0])
+        # Count-dependent discounts (D1, D2+), the same at every order
+        grid = [(0.5, 0.5), (0.8, 0.8), (0.6, 1.2), (0.9, 1.5)]
+        res = kp.tune_discounts("count", k=3, grid=grid)
+        for side, model in (("left", kp.backoff_left), ("right", kp.backoff_right)):
+            D = np.asarray(res[side]["discounts"])
+            self.assertEqual(D.shape, (3, 3))
+            self.assertIn(tuple(D[0, :2]), grid)
+            self.assertTrue(np.all(D == D[0]) and D[0, 1] == D[0, 2])
+            self.assertTrue(np.allclose(model.discounts[1:], D))
+        j = np.argmin(res["cv_nll"][1])
+        self.assertEqual(tuple(res["grid"][j]), tuple(res["right"]["discounts"][0][:2]))
+        self.assertTrue(np.isfinite(kp.logprior("sin(x0) + x1")))
+        with self.assertRaises(ValueError):
+            kp.tune_discounts("count", grid=[0.5, 0.8])
+        with self.assertRaises(ValueError):
+            KatzPrior(
+                2, self.basis_functions, equations=["x0+x1"], smoothing="katz"
+            ).tune_discounts()
+
+    def test_default_is_kn(self):
+        """Kneser-Ney with a fixed discount is the default; FunctionPrior is an alias"""
+        from katz.prior import DEFAULT_KN_DISCOUNT, FunctionPrior
+
+        eqs = self.kp_kn.all_eq[:40]
+        kp = FunctionPrior(2, self.basis_functions, equations=eqs)
+        self.assertEqual(kp.smoothing, "kn")
+        self.assertEqual(kp.smoothing_kwargs["discounts"], DEFAULT_KN_DISCOUNT)
+        explicit = KatzPrior(
+            2,
+            self.basis_functions,
+            equations=eqs,
+            smoothing="kn",
+            smoothing_kwargs={"discounts": DEFAULT_KN_DISCOUNT},
+        )
+        mkn = KatzPrior(
+            2,
+            self.basis_functions,
+            equations=eqs,
+            smoothing="kn",
+            smoothing_kwargs={"discounts": "mkn"},
+        )
+        for eq in ["x0**2", "sin(x0) + x1"]:
+            self.assertEqual(kp.logprior(eq), explicit.logprior(eq))
+            self.assertNotEqual(kp.logprior(eq), mkn.logprior(eq))
+
 
 class TestEdgeCases(unittest.TestCase):
     """Edge cases found by an independent audit of the code"""
 
     basis_functions = BASIS
+
+    def test_root_taken_from_tree(self):
+        # the root event is the root of the tree even when the first lineage tuple is
+        # skipped because the root's children include an ignored operator ("re")
+        basis = [["a", "x", "x0", "x1"], ["sin", "re"], ["+", "*"]]
+        for root_context in (False, True):
+            coder = SymbolCoder(basis, root_context=root_context)
+            for n in (2, 3):
+                for labels, root in [
+                    (["*", "sin", "sin", "x0", "re", "x1"], "*"),
+                    (["*", "re", "sin", "x0", "x1"], "*"),
+                    (["re", "sin", "x0"], "sin"),
+                ]:
+                    t = coder.labels2ntuples(n, labels)
+                    self.assertEqual(t[0][-1], coder.code[root])
 
     def test_bare_leaf_and_maxvar(self):
         self.assertEqual(split_by_punctuation("x0"), ["x0"])
@@ -696,16 +1043,28 @@ class TestEdgeCases(unittest.TestCase):
         import copy
         import pickle
 
-        kp = KatzPrior(2, self.basis_functions, equations=["x0 + x1", "sin(x0)*x1"])
-        for clone in (pickle.loads(pickle.dumps(kp)), copy.deepcopy(kp)):
-            for eq in ["x0 + x1", "sin(x0)"]:
-                self.assertEqual(clone.logprior(eq), kp.logprior(eq))
+        for sm in ("kn", "katz"):
+            kp = KatzPrior(
+                2,
+                self.basis_functions,
+                equations=["x0 + x1", "sin(x0)*x1"],
+                smoothing=sm,
+            )
+            for clone in (pickle.loads(pickle.dumps(kp)), copy.deepcopy(kp)):
+                for eq in ["x0 + x1", "sin(x0)"]:
+                    with self.subTest(smoothing=sm, eq=eq):
+                        self.assertEqual(clone.logprior(eq), kp.logprior(eq))
 
     def test_single_leaf_training_equation(self):
         # a single-leaf corpus equation contributes one root event to the training data
         eqs = ["x0", "x0 + x1", "sin(x0)*x1", "x0*x1 + x1"]
         kp = KatzPrior(
-            2, self.basis_functions, equations=eqs, root_context=False, normalise=False
+            2,
+            self.basis_functions,
+            equations=eqs,
+            smoothing="katz",
+            root_context=False,
+            normalise=False,
         )
         none = kp.coder.code["None"]
         left, right = [], []
@@ -725,16 +1084,22 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_corpus_without_binary_operators(self):
         eqs = ["sin(x0)", "exp(sqrt(x0))", "x0"]
+        kp = KatzPrior(2, self.basis_functions, equations=eqs)
+        self.assertEqual(len(kp.backoff_right.counts[1]), 0)
+        for eq in ["sin(x0)", "x0 * sin(x0)", "x0"]:
+            self.assertTrue(np.isfinite(kp.logprior(eq)))
         with self.assertRaises(ValueError):
-            KatzPrior(2, self.basis_functions, equations=eqs)
+            KatzPrior(2, self.basis_functions, equations=eqs, smoothing="katz")
 
     def test_normalised_katz(self):
         # the original Katz conditionals need not sum to one; the normalised ones do
         import pandas as pd
 
         eqs = list(pd.read_csv("data/NewPhysics.csv")["New Formula"])
-        raw = KatzPrior(3, self.basis_functions, equations=eqs, normalise=False)
-        norm = KatzPrior(3, self.basis_functions, equations=eqs)
+        raw = KatzPrior(
+            3, self.basis_functions, equations=eqs, smoothing="katz", normalise=False
+        )
+        norm = KatzPrior(3, self.basis_functions, equations=eqs, smoothing="katz")
         none = norm.coder.code["None"]
         contexts = {
             tuple(tt[-(norm.n + 1) : -1])
@@ -760,44 +1125,6 @@ class TestEdgeCases(unittest.TestCase):
             places=10,
         )
 
-    def test_second_leaf_follows_leaf(self):
-        # "y" (a leaf that differs from its left sibling) can only follow an "x": the
-        # normalised model gives it zero probability after any other left sibling
-        import pandas as pd
-
-        eqs = list(pd.read_csv("data/NewPhysics.csv")["New Formula"])
-        for n in (2, 3):
-            kp = KatzPrior(n, self.basis_functions, equations=eqs)
-            x, y = kp.coder.code["x"], kp.coder.code["y"]
-            m = kp.backoff_right
-            heads = [kp.coder.code[w] for w in ["*", "+", "/", "pow"]]
-            lefts = [kp.coder.code[w] for w in ["x", "sin", "*", "+", "pow"]]
-            for parent in heads:
-                for left in lefts:
-                    h = (kp.coder.code["None"],) * (n - 1) + (parent, left)
-                    p = {w: m.get_pbo(w, h) for w in m.words}
-                    self.assertAlmostEqual(sum(p.values()), 1.0, places=12)
-                    if left == x:
-                        self.assertGreater(p[y], 0)
-                    else:
-                        self.assertEqual(p[y], 0.0)
-            self.assertTrue(all(np.isfinite(kp.logprior(eq)) for eq in eqs[:20]))
-
-    def test_root_taken_from_tree(self):
-        # the root event is the root of the tree even when the first lineage tuple is
-        # skipped because the root's children include an ignored operator ("re")
-        basis = [["a", "x", "x0", "x1"], ["sin", "re"], ["+", "*"]]
-        for root_context in (False, True):
-            coder = SymbolCoder(basis, root_context=root_context)
-            for n in (2, 3):
-                for labels, root in [
-                    (["*", "sin", "sin", "x0", "re", "x1"], "*"),
-                    (["*", "re", "sin", "x0", "x1"], "*"),
-                    (["re", "sin", "x0"], "sin"),
-                ]:
-                    t = coder.labels2ntuples(n, labels)
-                    self.assertEqual(t[0][-1], coder.code[root])
-
     @staticmethod
     def _root(kp, eq):
         t = kp.coder.process_all_equations(kp.n + 1, [eq], kp.maxvar)
@@ -815,21 +1142,91 @@ class TestEdgeCases(unittest.TestCase):
         ]
         return float(np.sum(np.log(p)))
 
+    def test_kn_parameter_validation(self):
+        corpus = [("r", "a"), ("r", "b")]
+        for kw in [
+            dict(discounts=0.0),
+            dict(discounts=float("nan")),
+            dict(discounts=-0.5),
+            dict(discount_scale=-1.0),
+            dict(discount_scale=float("inf")),
+            dict(discounts=[0.5, 0.5, 0.5]),  # wrong shape for order 2
+            dict(order=0),
+        ]:
+            with self.subTest(**{k: str(v) for k, v in kw.items()}):
+                with self.assertRaises(ValueError):
+                    KneserNey(corpus, vocab=["c"], **kw)
+        m = KneserNey(corpus, vocab=["c"], discounts=[0.5, 0.7])
+        self.assertTrue(m.prob("c", ("r",)) > 0)
+        # Discounts above their maximum D_r = r are capped
+        m = KneserNey(corpus, discounts=0.9, discount_scale=3.0)
+        self.assertTrue(np.all(m.discounts[1:] == [1.0, 2.0, 2.7]))
 
+    def test_kn_empty_corpus(self):
+        m = KneserNey([], order=2, vocab=["a", "b", "c", "d"])
+        for w in "abcd":
+            self.assertAlmostEqual(m.prob(w, ("z",)), 0.25)
+        with self.assertRaises(ValueError):
+            KneserNey([])
+        m = KneserNey([("r", "a")] * 5, cache_size=2)
+        p = [m.prob(w, ("r",)) for w in "a" * 3]
+        self.assertTrue(len(m._cache) <= 2 and p[0] == p[2])
+
+    def test_tune_discounts_validation(self):
+        eqs = ["sin(x0) + x1", "x0*x1", "exp(x0) - x1", "sqrt(x0)/x1"]
+        with self.assertRaises(ValueError):
+            KatzPrior(2, self.basis_functions, equations=eqs[:1]).tune_discounts()
+        kp = KatzPrior(2, self.basis_functions, equations=eqs)
+        before = kp.logprior("sin(x0) * x1")
+        for kw in [
+            dict(k=1),
+            dict(grid=[]),
+            dict(grid=[0.5, np.nan]),
+            dict(grid=[0.0]),
+        ]:
+            with self.subTest(**{k: str(v) for k, v in kw.items()}):
+                with self.assertRaises(ValueError):
+                    kp.tune_discounts(**kw)
+        self.assertEqual(kp.logprior("sin(x0) * x1"), before)
+        res = kp.tune_discounts(k=2)  # two equations per fold
+        self.assertTrue(np.all(np.isfinite(res["cv_nll"])))
+
+    def test_cache_size(self):
+        for bad in (-1, 2.8, True, "10"):
+            with self.subTest(cache_size=bad), self.assertRaises(ValueError):
+                KneserNey([("a", "b")], order=2, cache_size=bad)
+        corpus = [("r", "a", "b"), ("r", "b", "a"), ("r", "a", "a")]
+        ref = KneserNey(corpus, vocab=["a", "b", "c"])
+        for size in (0, 1, 3):
+            m = KneserNey(corpus, vocab=["a", "b", "c"], cache_size=size)
+            for w, h in itertools.product("abcz", [(), ("a",), ("r", "a")]):
+                self.assertEqual(m.prob(w, h), ref.prob(w, h))
+            self.assertLessEqual(len(m._cache), size)
+
+    def test_random_normalisation(self):
+        # every conditional distribution is a probability distribution over the vocabulary
+        rng = np.random.default_rng(420)
+        for j in range(200):
+            order = int(rng.integers(1, 6))
+            corpus = [
+                tuple(rng.integers(0, 4, size=int(rng.integers(1, order + 1))))
+                for _ in range(int(rng.integers(0, 40)))
+            ]
+            discounts = ["mkn", "kn", 0.8, np.tile([0.8, 1.3, 1.7], (order, 1))][j % 4]
+            m = KneserNey(corpus, order=order, vocab=range(4), discounts=discounts)
+            for k in range(min(order, 4)):
+                h = tuple(rng.integers(0, 4, size=k))
+                p = np.array([m.prob(w, h) for w in range(4)])
+                self.assertTrue(np.all(np.isfinite(p)) and np.all(p >= 0))
+                self.assertAlmostEqual(p.sum(), 1.0, places=12)
+
+
+@unittest.skipUnless(HAVE_MPI, "katz.esr_prior needs mpi4py")
 class TestPriorCache(unittest.TestCase):
     """compute_logprior reuses saved scores only if every input and output is unchanged"""
 
-    corpus: ClassVar[list[str]] = [
-        "x0*sin(x0) + x0",
-        "sin(x0)**2",
-        "x0/(x0 + 1)",
-        "sqrt(x0) + sin(x0)",
-    ]
-    basis: ClassVar[list[list[str]]] = [
-        ["a", "x"],
-        ["sqrt", "sin", "square", "inv"],
-        ["+", "-", "*", "/", "pow"],
-    ]
+    corpus = ["x0*sin(x0) + x0", "sin(x0)**2", "x0/(x0 + 1)", "sqrt(x0) + sin(x0)"]
+    basis = [["a", "x"], ["sqrt", "sin", "square", "inv"], ["+", "-", "*", "/", "pow"]]
 
     def _library(self, td, fcn, tree):
         d = os.path.join(td, "compl_1")
@@ -851,7 +1248,7 @@ class TestPriorCache(unittest.TestCase):
             prior_kwargs={"equations": self.corpus},
             **kw,
         )
-        base = os.path.join(td, "compl_1", "katz_")
+        base = os.path.join(td, "compl_1", "kn_")
         return (
             float(np.loadtxt(base + "logprior_2_1.txt")),
             os.stat(base + "prior_2_1.json").st_mtime_ns,
@@ -871,14 +1268,12 @@ class TestPriorCache(unittest.TestCase):
             # changed constant penalties
             lc = os.path.join(td, "compl_1", "logconst_1.txt")
             np.savetxt(lc, [1.5])
-            _v2, t2 = self._run(td)
+            v2, t2 = self._run(td)
             self.assertNotEqual(t2, t1)
-            code = float(
-                np.loadtxt(os.path.join(td, "compl_1", "katz_codelen_2_1.txt"))
-            )
+            code = float(np.loadtxt(os.path.join(td, "compl_1", "kn_codelen_2_1.txt")))
             self.assertAlmostEqual(code, v1 + 1.5, places=10)
             # tampered output
-            np.savetxt(os.path.join(td, "compl_1", "katz_logprior_2_1.txt"), [0.0])
+            np.savetxt(os.path.join(td, "compl_1", "kn_logprior_2_1.txt"), [0.0])
             v3, t3 = self._run(td)
             self.assertAlmostEqual(v3, v1, places=10)
             self.assertNotEqual(t3, t2)
@@ -886,33 +1281,52 @@ class TestPriorCache(unittest.TestCase):
             self._library(td, "sqrt(x0)", ["sqrt", "x0"])
             self.assertEqual(float(np.loadtxt(lc)), 0.0)
 
-    def test_esr_parser_in_code_hash(self):
-        # the scores depend on ESR's parser, so a change to it must invalidate saved output
+    def test_parser_in_code_hash(self):
+        # the scores depend on the equation parser, so a change to it must invalidate
+        # saved output
         from unittest import mock
 
-        import esr.generation.generator as gen
-
+        srcs = esr_prior._scoring_sources()
+        names = [os.path.basename(p) for p in srcs]
+        self.assertTrue(
+            {"tree_parser.py", "kneser_ney.py", "process_equations.py"} <= set(names)
+        )
         with tempfile.TemporaryDirectory() as td:
-            h0 = esr_prior._code_sha256()
-            copy_ = os.path.join(td, "generator.py")
-            with open(gen.__file__) as f:
+            i = names.index("tree_parser.py")
+            copy_ = os.path.join(td, "tree_parser.py")
+            with open(srcs[i]) as f:
                 src = f.read()
+            h0 = esr_prior._code_sha256()
+            changed = srcs[:i] + [copy_] + srcs[i + 1 :]
             # comments, docstrings and formatting do not enter the hash; code does
-            for extra, changed in [
+            for extra, differs in [
                 ("\n# changed\n", False),
                 ('\n\n\ndef _extra():\n    """Docstring"""\n', True),
                 ("\n_changed = 1\n", True),
             ]:
                 with open(copy_, "w") as g:
                     g.write(src + extra)
-                with mock.patch.object(gen, "__file__", copy_):
-                    self.assertEqual(esr_prior._code_sha256() != h0, changed)
+                with mock.patch.object(
+                    esr_prior, "_scoring_sources", return_value=changed
+                ):
+                    self.assertEqual(esr_prior._code_sha256() != h0, differs)
             self._library(td, "x0", ["x0"])
             v0, t0 = self._run(td)
             with mock.patch.object(esr_prior, "_code_sha256", return_value="other"):
                 v1, t1 = self._run(td)
             self.assertNotEqual(t1, t0)
             self.assertEqual(v1, v0)
+
+    def test_manifest_config_is_json(self):
+        # numpy booleans (e.g. from a parameter grid) are recorded as JSON booleans
+        import json
+
+        cfg = esr_prior._prior_config(
+            3,
+            self.basis,
+            {"root_context": np.bool_(True), "code_constants": np.bool_(False)},
+        )
+        self.assertEqual(json.loads(json.dumps(cfg))["root_context"], True)
 
     def test_nan_scores_are_counted(self):
         # the unnormalised model can return NaN (zero denominator in a back-off weight);
@@ -935,13 +1349,59 @@ class TestPriorCache(unittest.TestCase):
                 None,
                 None,
                 label="nan",
-                prior_kwargs={"equations": ["x0 + x1"], "normalise": False},
+                prior_kwargs={
+                    "equations": ["x0 + x1"],
+                    "smoothing": "katz",
+                    "normalise": False,
+                },
             )
             vals = np.loadtxt(os.path.join(d, "nan_logprior_2_1.txt"))
             with open(os.path.join(d, "nan_prior_2_1.json")) as f:
                 manifest = json.load(f)
             self.assertTrue(np.isnan(vals[0]) and np.isfinite(vals[1]))
             self.assertEqual(manifest["n_failed"], 1)
+
+
+class TestTreeParser(unittest.TestCase):
+    """The built-in (sympy-only) tree parser"""
+
+    basis_functions = [
+        ["a", "x"],
+        ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh", "inv"],
+        ["+", "-", "*", "/", "pow"],
+    ]
+    equations = [
+        "x0**2",
+        "sin(x0) + x1",
+        "x0 - x1",
+        "x0/x1",
+        "1/x0",
+        "sqrt(x0)*exp(-x1)",
+        "pow(Abs(a0), x0) + a1",
+        "a0*x0**3 + 2.5",
+        "x0",
+        "arccos(tanh(x0))/log(x1)",
+    ]
+
+    @unittest.skipUnless(HAVE_ESR, "ESR is not installed")
+    def test_same_as_esr(self):
+        import katz.process_equations as pe
+
+        import pandas as pd
+
+        eqs = self.equations + list(pd.read_csv("data/NewPhysics.csv")["New Formula"])
+        kp = KatzPrior(3, self.basis_functions, equations=eqs)  # basis x0 ... x10
+        for rc, cc in [(False, False), (True, True)]:
+            coder = pe.SymbolCoder(
+                kp.basis_functions, code_constants=cc, root_context=rc
+            )
+            try:
+                pe.generator = esr.generation.generator
+                ref = [coder.process_all_equations(4, [e], 11) for e in eqs]
+            finally:
+                pe.generator = tree_parser
+            new = [coder.process_all_equations(4, [e], 11) for e in eqs]
+            self.assertEqual(new, ref)
 
 
 if __name__ == "__main__":
