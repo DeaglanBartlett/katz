@@ -719,11 +719,13 @@ class TestEdgeCases(unittest.TestCase):
             p = [m.get_pbo(w, h) for w in m.words]
             self.assertTrue(min(p) >= 0)
             self.assertAlmostEqual(sum(p), 1.0, places=12)
-        # BackOff itself is unchanged: normalise=False is the original model
-        self.assertEqual(
+        # BackOff itself is unchanged: normalise=False is the original model (the sums are
+        # taken in a different order, so compare to rounding)
+        self.assertAlmostEqual(
             raw.logprior("sin(x0) + x1"),
             np.log(raw.backoff_left.get_pbo(*self._root(raw, "sin(x0) + x1")))
             + self._rest(raw, "sin(x0) + x1"),
+            places=10,
         )
 
     @staticmethod

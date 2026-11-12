@@ -222,7 +222,7 @@ class SymbolCoder:
 
         # The parent node will not have been considered
         if self.root_context:
-            root = [tt for tt in ntuples[0] if tt != self.code["None"]][0]
+            root = next(tt for tt in ntuples[0] if tt != self.code["None"])
             ntuples = [(self.code["None"],) * (n - 1) + (root,)] + ntuples
         else:
             ntuples = [(ntuples[0][0],)] + ntuples

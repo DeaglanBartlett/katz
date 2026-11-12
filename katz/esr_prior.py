@@ -236,7 +236,7 @@ def get_logconst(comp, dirname, overwrite=False):
         _dump_json_atomic(
             sidecar,
             {"trees_sha256": _sha256(treename), "logconst_sha256": _sha256(outname),
-             "n": int(len(values))},
+             "n": len(values)},
         )
 
     _on_root(save)
@@ -428,7 +428,7 @@ def compute_logprior(
         # will use as replacement to aifeyn term, so need to sum these
         _savetxt_atomic(outname_code, -logprior + logconst)
         manifest.update(
-            n_functions=int(len(logprior)),
+            n_functions=len(logprior),
             n_zoo=int(nbad[0]),
             n_failed=int(nbad[1]),
             n_zero_prior=int(np.sum(np.isneginf(logprior))),
