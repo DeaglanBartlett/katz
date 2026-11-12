@@ -46,7 +46,7 @@ class TestKatzPrior(unittest.TestCase):
             ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
             ["+", "-", "*", "/", "pow"],
         ]
-        # Reference values below are for the model of Bartlett et al. (2023)
+        # Reference values below are for the model of version 0.2.1
         cls.kp_feynman = KatzPrior(
             n,
             basis_functions,
@@ -551,7 +551,7 @@ class TestKatzPriorOptions(unittest.TestCase):
 
     def test_defaults(self):
         """Root context and normalisation are on by default; switching both off gives the
-        model of Bartlett et al. (2023)"""
+        model of version 0.2.1"""
         from katz.back_off import NormalisedBackOff
 
         self.assertTrue(self.kp.root_context and self.kp.normalise)

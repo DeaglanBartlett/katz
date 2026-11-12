@@ -3,7 +3,7 @@ import numpy as np
 from katz.back_off import BackOff, NormalisedBackOff
 from katz.process_equations import SymbolCoder, count_variables, standardise_file
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 class KatzPrior:
@@ -21,15 +21,18 @@ class KatzPrior:
     ):
         """Class to evaluate the probability of a function based on an n-gram Katz back-off model
 
-        Note: before version 0.2.0 the model was that of root_context=False, normalise=False,
+        Note: before version 0.3.0 the model was that of root_context=False, normalise=False,
         and a function consisting of a single leaf (x or a constant) counted the root event
-        twice. Published results that use this package (Bartlett, Desmond & Ferreira 2023 and
-        its applications) used that model; pass root_context=False, normalise=False to
-        reproduce them. For corpora without single-leaf equations, including those in
-        data/, the single-leaf correction halves the log-prior of a single-leaf function
-        in the original representation and changes no other prior. For corpora containing
-        single-leaf equations, the corrected training counts can also change the priors of
-        other functions.
+        twice. Pass root_context=False, normalise=False for the model of version 0.2.1. For
+        corpora without single-leaf equations, including those in data/, the single-leaf
+        correction halves the log-prior of a single-leaf function in the original
+        representation and changes no other prior. For corpora containing single-leaf
+        equations, the corrected training counts can also change the priors of other
+        functions. Priors computed before version 0.2.0, including those of Bartlett, Desmond
+        & Ferreira (2023) and Sousa et al. (2024), used version 0.1.0 or earlier, whose
+        right-child model omitted the parent from the context at n = 2 (in general, the most
+        distant symbol of the context); no setting of this version reproduces them (see
+        README).
 
         Args:
             :n (int): The length of the n-tuples to consider

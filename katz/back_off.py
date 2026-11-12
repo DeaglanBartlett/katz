@@ -192,7 +192,7 @@ class NormalisedBackOff:
     give probabilities above one and negative back-off weights (in very small corpora); a
     zero denominator in a back-off weight gives NaN. KatzPrior applies this wrapper by
     default (normalise=True); BackOff itself is unchanged, so KatzPrior(..., normalise=False)
-    gives the original model.
+    gives the unnormalised model of version 0.2.1.
 
     Args:
         :model (BackOff): The fitted Katz back-off model
