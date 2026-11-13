@@ -5,7 +5,8 @@ import string
 import numpy as np
 import pandas as pd
 import sympy
-from esr.generation import generator
+
+from katz import tree_parser as generator
 
 
 def split_by_punctuation(s):
@@ -117,17 +118,19 @@ def standardise_file(in_name, out_name, input_delimiter):
 
 class SymbolCoder:
 
-    def __init__(self, basis_functions, root_context=False):
+    def __init__(self, basis_functions, root_context=False, code_constants=False):
         """Class to encode equations as tuples of strings to be used by a back-off model
 
         Args:
             :basis_functions (list): List of basis functions to consider. Entries 0, 1 and 2 are lists of nullary, unary, and binary operators, respectively.
             :root_context (bool, default=False): If True, lineages which reach the root are left-padded with the "None" codeword, so that the root and nodes near it are conditioned on an explicit start-of-tree context. If False (original behaviour), such tuples are simply shorter.
+            :code_constants (bool, default=False): If True, numerical constants and parameters (a, a0, a1, ...) are coded as "a". If False (original behaviour), parameters are coded like variables ("x"/"y") and only distinguished by whether sibling leaves are identical.
 
         Returns:
             SymbolCoder: A coder to encode equations
         """
         self.basis_functions = basis_functions
+        self.code_constants = code_constants
         self.root_context = root_context
 
         self.sympy_numerics = [
@@ -175,7 +178,7 @@ class SymbolCoder:
 
         Args:
             :n (int): The length of the n-tuples to produce
-            :nodes (esr.generation.generator.DecoratedNode): Node object corresponding to the tree
+            :nodes (katz.tree_parser.DecoratedNode): Node object corresponding to the tree
 
         Returns:
             :ntuples (list); List of n-tuples which describe tree structure of function
@@ -405,7 +408,12 @@ class SymbolCoder:
         """
         if op is None:
             return str(None)
-        elif op.lower() in self.sympy_numerics or generator.is_float(op):
+        elif (
+            op.lower() in self.sympy_numerics
+            or generator.is_float(op)
+            or self.code_constants
+            and (op == "a" or (op.startswith("a") and op[1:].isdigit()))
+        ):
             return "a"
         elif (
             op == "Symbol"
