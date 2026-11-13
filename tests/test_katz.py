@@ -14,6 +14,7 @@ from katz.esr_prior import compute_logprior, default_label, get_logconst
 from katz.good_turing import GoodTuring
 from katz.prior import KatzPrior
 from katz.process_equations import (
+    SymbolCoder,
     count_variables,
     split_by_punctuation,
     standardise_file,
@@ -759,6 +760,44 @@ class TestEdgeCases(unittest.TestCase):
             places=10,
         )
 
+    def test_second_leaf_follows_leaf(self):
+        # "y" (a leaf that differs from its left sibling) can only follow an "x": the
+        # normalised model gives it zero probability after any other left sibling
+        import pandas as pd
+
+        eqs = list(pd.read_csv("data/NewPhysics.csv")["New Formula"])
+        for n in (2, 3):
+            kp = KatzPrior(n, self.basis_functions, equations=eqs)
+            x, y = kp.coder.code["x"], kp.coder.code["y"]
+            m = kp.backoff_right
+            heads = [kp.coder.code[w] for w in ["*", "+", "/", "pow"]]
+            lefts = [kp.coder.code[w] for w in ["x", "sin", "*", "+", "pow"]]
+            for parent in heads:
+                for left in lefts:
+                    h = (kp.coder.code["None"],) * (n - 1) + (parent, left)
+                    p = {w: m.get_pbo(w, h) for w in m.words}
+                    self.assertAlmostEqual(sum(p.values()), 1.0, places=12)
+                    if left == x:
+                        self.assertGreater(p[y], 0)
+                    else:
+                        self.assertEqual(p[y], 0.0)
+            self.assertTrue(all(np.isfinite(kp.logprior(eq)) for eq in eqs[:20]))
+
+    def test_root_taken_from_tree(self):
+        # the root event is the root of the tree even when the first lineage tuple is
+        # skipped because the root's children include an ignored operator ("re")
+        basis = [["a", "x", "x0", "x1"], ["sin", "re"], ["+", "*"]]
+        for root_context in (False, True):
+            coder = SymbolCoder(basis, root_context=root_context)
+            for n in (2, 3):
+                for labels, root in [
+                    (["*", "sin", "sin", "x0", "re", "x1"], "*"),
+                    (["*", "re", "sin", "x0", "x1"], "*"),
+                    (["re", "sin", "x0"], "sin"),
+                ]:
+                    t = coder.labels2ntuples(n, labels)
+                    self.assertEqual(t[0][-1], coder.code[root])
+
     @staticmethod
     def _root(kp, eq):
         t = kp.coder.process_all_equations(kp.n + 1, [eq], kp.maxvar)
@@ -854,12 +893,20 @@ class TestPriorCache(unittest.TestCase):
         import esr.generation.generator as gen
 
         with tempfile.TemporaryDirectory() as td:
-            copy_ = os.path.join(td, "generator.py")
-            with open(gen.__file__) as f, open(copy_, "w") as g:
-                g.write(f.read() + "\n# changed\n")
             h0 = esr_prior._code_sha256()
-            with mock.patch.object(gen, "__file__", copy_):
-                self.assertNotEqual(esr_prior._code_sha256(), h0)
+            copy_ = os.path.join(td, "generator.py")
+            with open(gen.__file__) as f:
+                src = f.read()
+            # comments, docstrings and formatting do not enter the hash; code does
+            for extra, changed in [
+                ("\n# changed\n", False),
+                ('\n\n\ndef _extra():\n    """Docstring"""\n', True),
+                ("\n_changed = 1\n", True),
+            ]:
+                with open(copy_, "w") as g:
+                    g.write(src + extra)
+                with mock.patch.object(gen, "__file__", copy_):
+                    self.assertEqual(esr_prior._code_sha256() != h0, changed)
             self._library(td, "x0", ["x0"])
             v0, t0 = self._run(td)
             with mock.patch.object(esr_prior, "_code_sha256", return_value="other"):

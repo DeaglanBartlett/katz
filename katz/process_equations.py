@@ -220,12 +220,17 @@ class SymbolCoder:
                 tup = tup[-(n + 1) :]
             ntuples.append(tup)
 
-        # The parent node will not have been considered
+        # The root event, taken from the tree itself (the first lineage tuple is skipped
+        # when the root's children include an ignored operator); an ignored operator at the
+        # root is skipped like ignored ancestors in the lineages
+        root_node = nodes
+        while root_node.op in self.ignore_ops and len(root_node.children) > 0:
+            root_node = root_node.children[0]
+        root = self.op2codeword(root_node.op)
         if self.root_context:
-            root = next(tt for tt in ntuples[0] if tt != self.code["None"])
             ntuples = [(self.code["None"],) * (n - 1) + (root,)] + ntuples
         else:
-            ntuples = [(ntuples[0][0],)] + ntuples
+            ntuples = [(root,)] + ntuples
 
         # A single-leaf tree has only the root event: the loop above also produced
         # a (leaf, None) sibling tuple for it, which would count the root twice

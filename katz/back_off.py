@@ -198,14 +198,18 @@ class NormalisedBackOff:
         :model (BackOff): The fitted Katz back-off model
         :vocab (list): Words over which each conditional distribution is normalised (default:
             the words of the training corpus)
+        :follows (dict): Words that can only follow a given word, as {word: previous word}.
+            Such a word has zero probability in any context that does not end with that
+            previous word (default: none)
 
     Returns:
         NormalisedBackOff: Model with the same get_pbo interface
     """
 
-    def __init__(self, model, vocab=None):
+    def __init__(self, model, vocab=None, follows=None):
         self.model = model
         self.words = list(model.words if vocab is None else vocab)
+        self.follows = dict(follows or {})
         self._dist = {}
 
     def __getattr__(self, name):
@@ -219,6 +223,9 @@ class NormalisedBackOff:
         if h not in self._dist:
             p = {}
             for w in self.words:
+                if w in self.follows and (len(h) == 0 or h[-1] != self.follows[w]):
+                    p[w] = 0.0
+                    continue
                 v = float(self.model.get_pbo(w, h))
                 p[w] = v if v > 0 and v != float("inf") else 0.0  # also NaN -> 0
             z = sum(p.values())

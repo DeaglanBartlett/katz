@@ -93,7 +93,9 @@ Changes in version 0.3.0
   Good-Turing slope above -1 inflates the counts, giving probabilities above one or below
   zero, and a zero denominator in a back-off weight gives NaN. Negative and non-finite values
   are now set to zero and each conditional distribution is divided by its sum over the
-  vocabulary (``katz.back_off.NormalisedBackOff``).
+  vocabulary (``katz.back_off.NormalisedBackOff``). The second of two different leaves
+  (coded ``y``) can only follow a leaf, so it has zero probability after any other left
+  sibling; the back-off model gives it up to 0.3 there.
 * **Root context** (``root_context=True``, default). Lineages that reach the root are padded
   with a start-of-tree symbol, so the root and the nodes near it are predicted from their
   position in the tree. In earlier versions the root was predicted from the distribution of
@@ -122,6 +124,8 @@ Changes in version 0.3.0
   on the sympy version: older versions pull a numerical factor out of some square roots
   (e.g. ``sqrt(2*x0**2 + 4*x1)``), which changes the trees of 6 of the 161 physics and 2 of the
   100 Feynman equations. The reference values of the tests are for sympy >= 1.14.
+  Installing this version upgrades older sympy installations, including environments shared
+  with ESR (which accepts any version).
 * **Bug fixes that change no prior of the version 0.2.1 model for the corpora in** ``data/``: a
   bare variable (``x0``) could not be split into tokens; ``standardise_file`` with
   ``in_eqfile=None`` counted variable
@@ -133,8 +137,11 @@ Changes in version 0.3.0
 * ``katz.esr_prior``: output files are named by configuration (``katz``, ``katz_noroot``,
   ``katz_noroot_unnorm``, ...) and reused only if a JSON manifest shows that the prior
   configuration, the corpus, the candidate functions, the constant penalties, the scoring code
-  and the katz and sympy versions are unchanged; rank 0 alone writes the standardised corpus;
-  functions that cannot be scored are NaN and counted; outputs are written atomically.
+  (as parsed, so reformatting or editing comments does not invalidate saved priors) and the
+  katz and sympy versions are unchanged; rank 0 alone writes the standardised corpus;
+  functions that cannot be scored are NaN and counted; outputs are written atomically. Files
+  labelled ``katz`` now hold the new default model; the model of version 0.2.1 is written as
+  ``katz_noroot_unnorm`` (as by ``scripts/run_esr_prior.py``).
 * ``KatzPrior(..., equations=[...])`` takes the corpus as a list of equations instead of a file.
 
 Licence and Citation

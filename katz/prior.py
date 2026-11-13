@@ -85,7 +85,8 @@ class KatzPrior:
         self.backoff_right = BackOff(data_right)
         if normalise:
             # words that can be predicted: leaves (constants and parameters are coded "x")
-            # and operators; a right child can also be a second, distinct variable "y"
+            # and operators; a right child can also be a second leaf "y" that differs from
+            # its left sibling, so it can only follow an "x"
             ops = [
                 o
                 for o in list(basis_functions[1]) + list(basis_functions[2])
@@ -94,7 +95,11 @@ class KatzPrior:
             vocab_left = [self.coder.code[s] for s in ["x"] + ops]
             vocab_right = vocab_left + [self.coder.code["y"]]
             self.backoff_left = NormalisedBackOff(self.backoff_left, vocab_left)
-            self.backoff_right = NormalisedBackOff(self.backoff_right, vocab_right)
+            self.backoff_right = NormalisedBackOff(
+                self.backoff_right,
+                vocab_right,
+                follows={self.coder.code["y"]: self.coder.code["x"]},
+            )
 
     def logprior_tuples(self, t):
         """

@@ -139,9 +139,31 @@ def _dump_json_atomic(path, obj):
     os.replace(tmp, path)
 
 
+def _code_fingerprint(path):
+    """The parsed code of a Python source file without its docstrings, so that changes to
+    formatting, comments or docstrings leave it unchanged"""
+    with open(path) as f:
+        tree = ast.parse(f.read())
+    for node in ast.walk(tree):
+        if isinstance(
+            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            body = node.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                node.body = body[1:] or [ast.Pass()]
+    return ast.dump(tree, include_attributes=False)
+
+
 def _code_sha256():
-    """SHA-256 of the source files that determine the scores: the katz modules and ESR's
-    equation parser (esr.generation.generator), whose trees the prior scores"""
+    """SHA-256 of the code that determines the scores: the katz modules and ESR's equation
+    parser (esr.generation.generator), whose trees the prior scores. Only the parsed code
+    enters (see _code_fingerprint), so reformatting or editing comments and docstrings does
+    not invalidate saved priors"""
     import hashlib
 
     from esr.generation import generator as esr_generator
@@ -159,8 +181,8 @@ def _code_sha256():
     ]
     h = hashlib.sha256()
     for path in paths:
-        with open(path, "rb") as f:
-            h.update(os.path.basename(path).encode() + b"\0" + f.read())
+        code = _code_fingerprint(path)
+        h.update(os.path.basename(path).encode() + b"\0" + code.encode())
     return h.hexdigest()
 
 
