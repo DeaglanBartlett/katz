@@ -102,8 +102,9 @@ Changes in version 0.3.0
   all first children, which is dominated by leaves, whereas real roots are almost always
   ``*``, ``/``, ``+`` or ``pow``.
 * Together these lower the held-out codelength of physics equations (leave one equation
-  family out, 159 equations) by 1.55 +/- 0.07, 1.94 +/- 0.10 and 2.12 +/- 0.14 nats per
-  equation at n = 2, 3 and 4. Normalisation alone contributes 0.04-0.06 nats.
+  family out, 159 equations) by 1.59 +/- 0.07, 2.01 +/- 0.10 and 2.21 +/- 0.14 nats per
+  equation at n = 2, 3 and 4. Normalisation alone contributes 0.07-0.15 nats, most of it from
+  the zero probability of ``y`` where it cannot occur.
 * On the recovery benchmark of Bartlett et al. (2023) (ESR fits up to complexity 7 of
   Nguyen-8 and Korns-1, 4, 6 and 7 mocks; 7 sample sizes and 5 noise realisations each, 175
   mocks), the generating function is ranked first in 54% of mocks at n = 2 and 61% at
