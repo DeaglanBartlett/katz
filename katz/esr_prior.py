@@ -147,8 +147,16 @@ def _code_sha256():
     from esr.generation import generator as esr_generator
 
     here = os.path.dirname(os.path.abspath(__file__))
-    names = ("prior.py", "back_off.py", "good_turing.py", "process_equations.py", "esr_prior.py")
-    paths = [os.path.join(here, name) for name in sorted(names)] + [esr_generator.__file__]
+    names = (
+        "prior.py",
+        "back_off.py",
+        "good_turing.py",
+        "process_equations.py",
+        "esr_prior.py",
+    )
+    paths = [os.path.join(here, name) for name in sorted(names)] + [
+        esr_generator.__file__
+    ]
     h = hashlib.sha256()
     for path in paths:
         with open(path, "rb") as f:
@@ -215,7 +223,10 @@ def get_logconst(comp, dirname, overwrite=False):
         except (OSError, ValueError):
             reuse = False
         if not reuse:
-            print(f"Recomputing {outname}: tree file changed or no record of it", flush=True)
+            print(
+                f"Recomputing {outname}: tree file changed or no record of it",
+                flush=True,
+            )
         return reuse
 
     if _on_root(check_reuse):
@@ -235,8 +246,11 @@ def get_logconst(comp, dirname, overwrite=False):
         _savetxt_atomic(outname, values)
         _dump_json_atomic(
             sidecar,
-            {"trees_sha256": _sha256(treename), "logconst_sha256": _sha256(outname),
-             "n": len(values)},
+            {
+                "trees_sha256": _sha256(treename),
+                "logconst_sha256": _sha256(outname),
+                "n": len(values),
+            },
         )
 
     _on_root(save)
@@ -253,7 +267,9 @@ def _prior_config(n, basis_functions, prior_kwargs):
         for k, v in inspect.signature(KatzPrior.__init__).parameters.items()
         if v.default is not inspect.Parameter.empty
     }
-    cfg = {k: bool(prior_kwargs.get(k, defaults[k])) for k in ("root_context", "normalise")}
+    cfg = {
+        k: bool(prior_kwargs.get(k, defaults[k])) for k in ("root_context", "normalise")
+    }
     cfg["n"] = int(n)
     cfg["basis_functions"] = [list(b) for b in basis_functions]
     return cfg
@@ -333,15 +349,19 @@ def compute_logprior(
         equations = prior_kwargs.pop("equations")
         all_eq = _on_root(lambda: list(equations))
     else:
-        all_eq = _on_root(lambda: standardise_file(in_eqfile, out_eqfile, input_delimiter)[0])
+        all_eq = _on_root(
+            lambda: standardise_file(in_eqfile, out_eqfile, input_delimiter)[0]
+        )
 
     import sympy
 
     candname = dirname + (
-        f"/compl_{comp}/trees_{comp}.txt" if use_tree
+        f"/compl_{comp}/trees_{comp}.txt"
+        if use_tree
         else f"/compl_{comp}/all_equations_{comp}.txt"
     )
     logconst_name = dirname + f"/compl_{comp}/logconst_{comp}.txt"
+
     def manifest_and_reuse():
         manifest = {
             "config": _prior_config(n, basis_functions, prior_kwargs),
@@ -357,7 +377,11 @@ def compute_logprior(
             "sympy_version": sympy.__version__,
         }
         reuse = False
-        if not overwrite and os.path.isfile(outname_code) and os.path.isfile(outname_prior):
+        if (
+            not overwrite
+            and os.path.isfile(outname_code)
+            and os.path.isfile(outname_prior)
+        ):
             old = None
             if os.path.isfile(outname_manifest):
                 with open(outname_manifest) as f:
@@ -368,7 +392,8 @@ def compute_logprior(
                 why = "no manifest"
             elif any(old.get(k) != manifest[k] for k in keys):
                 why = "different inputs: " + ", ".join(
-                    k for k in keys if old.get(k) != manifest[k])
+                    k for k in keys if old.get(k) != manifest[k]
+                )
             elif old.get("prior_sha256") != _sha256(outname_prior) or old.get(
                 "codelen_sha256"
             ) != _sha256(outname_code):
@@ -376,7 +401,10 @@ def compute_logprior(
             if why is None:
                 reuse = True
             else:
-                print(f"Recomputing {outname_prior}: existing output has {why}", flush=True)
+                print(
+                    f"Recomputing {outname_prior}: existing output has {why}",
+                    flush=True,
+                )
         return manifest, reuse
 
     manifest, reuse = _on_root(manifest_and_reuse)

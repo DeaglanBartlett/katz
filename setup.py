@@ -3,7 +3,7 @@ import re
 from setuptools import setup
 
 with open("katz/prior.py") as f:
-    version = re.search(r'^__version__ = "(.+)"', f.read(), re.M).group(1)
+    version = re.search(r'^__version__ = "(.+)"', f.read(), re.MULTILINE).group(1)
 
 setup(
     name="katz",

@@ -256,7 +256,9 @@ class SymbolCoder:
         # Get parent operators. Every x_i/a_i is a leaf, including variables beyond the
         # corpus's range (the nullary basis lists only x0..x{maxvar-1}).
         leaves = [lab for lab in labels_changed if re.fullmatch(r"[xa]\d+", lab)]
-        shape_basis = [list(self.basis_functions[0]) + leaves] + list(self.basis_functions[1:])
+        shape_basis = [list(self.basis_functions[0]) + leaves] + list(
+            self.basis_functions[1:]
+        )
         s = generator.labels_to_shape(labels_changed, shape_basis)
         success, _, tree = generator.check_tree(s)
         assert success
@@ -372,7 +374,10 @@ class SymbolCoder:
         )
         x = sympy.symbols([f"x{i}" for i in range(nsym)], real=True)
         a = sympy.symbols([f"a{i}" for i in range(nsym)], real=True)
-        locs = {**{f"x{i}": x[i] for i in range(nsym)}, **{f"a{i}": a[i] for i in range(nsym)}}
+        locs = {
+            **{f"x{i}": x[i] for i in range(nsym)},
+            **{f"a{i}": a[i] for i in range(nsym)},
+        }
 
         ntuples = []
         for eq in all_eq:

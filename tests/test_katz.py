@@ -2,13 +2,14 @@ import itertools
 import os
 import tempfile
 import unittest
+from typing import ClassVar
 
 import esr
 import esr.generation.duplicate_checker
 import numpy as np
 
-from katz.back_off import BackOff
 from katz import esr_prior
+from katz.back_off import BackOff
 from katz.esr_prior import compute_logprior, default_label, get_logconst
 from katz.good_turing import GoodTuring
 from katz.prior import KatzPrior
@@ -56,7 +57,11 @@ class TestKatzPrior(unittest.TestCase):
             normalise=False,
         )
         cls.kp_feynman_no_input = KatzPrior(
-            n, basis_functions, None, "data/NewFeynman.csv", root_context=False,
+            n,
+            basis_functions,
+            None,
+            "data/NewFeynman.csv",
+            root_context=False,
             normalise=False,
         )
 
@@ -175,7 +180,9 @@ class TestKatzPrior(unittest.TestCase):
         eq = "x0*abs(exp(x0) - 1)**x1"
         self.assertEqual(
             kp.coder.labels2ntuples(3, kp.coder.equation2labels(eq, {**x, **a})),
-            kp.coder.labels2ntuples(3, kp.coder.equation2labels(eq.replace("abs", ""), {**x, **a})),
+            kp.coder.labels2ntuples(
+                3, kp.coder.equation2labels(eq.replace("abs", ""), {**x, **a})
+            ),
         )
 
 
@@ -261,8 +268,10 @@ class TestESRPrior(unittest.TestCase):
 
         for use_tree, (label, prior_kwargs) in itertools.product(
             [False, True],
-            [("katz_noroot_unnorm", {"root_context": False, "normalise": False}),
-             ("katz", None)],
+            [
+                ("katz_noroot_unnorm", {"root_context": False, "normalise": False}),
+                ("katz", None),
+            ],
         ):
 
             # Test compute_logprior function
@@ -342,7 +351,8 @@ class TestESRPrior(unittest.TestCase):
         self.assertEqual(default_label({"root_context": False}), "katz_noroot")
         self.assertEqual(default_label({"normalise": False}), "katz_unnorm")
         self.assertEqual(
-            default_label({"root_context": False, "normalise": False}), "katz_noroot_unnorm"
+            default_label({"root_context": False, "normalise": False}),
+            "katz_noroot_unnorm",
         )
         base = os.path.join(self.dirname, f"compl_{self.comp}", "")
         prior_file = base + f"clash_logprior_{self.n}_{self.comp}.txt"
@@ -557,7 +567,10 @@ class TestKatzPriorOptions(unittest.TestCase):
         self.assertTrue(self.kp.root_context and self.kp.normalise)
         self.assertIsInstance(self.kp.backoff_left, NormalisedBackOff)
         orig = KatzPrior(
-            2, self.basis_functions, equations=self.kp.all_eq, root_context=False,
+            2,
+            self.basis_functions,
+            equations=self.kp.all_eq,
+            root_context=False,
             normalise=False,
         )
         self.assertIsInstance(orig.backoff_left, BackOff)
@@ -580,8 +593,9 @@ class TestKatzPriorOptions(unittest.TestCase):
         self.assertEqual(t[0], (none, none, kp.coder.code["sin"]))
         self.assertTrue(all(len(tt) == n + 2 for tt in t[1:]))
         self.assertTrue(np.isfinite(kp.logprior("sin(sin(x0 + x1))")))
-        kp = KatzPrior(n, self.basis_functions, equations=self.kp.all_eq[:30],
-                       root_context=False)
+        kp = KatzPrior(
+            n, self.basis_functions, equations=self.kp.all_eq[:30], root_context=False
+        )
         t = kp.coder.process_all_equations(n + 1, ["sin(sin(x0 + x1))"], 2)
         self.assertEqual(t[0], (kp.coder.code["sin"],))
 
@@ -622,7 +636,10 @@ class TestEdgeCases(unittest.TestCase):
                 f.write("New Formula\nx10 + 1\nx0\n")
             eqs, maxvar = standardise_file(None, fname, ",")
             self.assertEqual((eqs, maxvar), (["x10 + 1", "x0"], 11))
-        for fname, expected in [("data/NewPhysics.csv", 11), ("data/NewFeynman.csv", 9)]:
+        for fname, expected in [
+            ("data/NewPhysics.csv", 11),
+            ("data/NewFeynman.csv", 9),
+        ]:
             with self.subTest(fname=fname):
                 self.assertEqual(standardise_file(None, fname, ",")[1], expected)
 
@@ -637,8 +654,11 @@ class TestEdgeCases(unittest.TestCase):
         eqs = list(pd.read_csv("data/NewPhysics.csv")["New Formula"])
         kp = KatzPrior(2, self.basis_functions, equations=eqs)
         self.assertEqual(kp.maxvar, 11)
-        for e0, e1 in [("sqrt(x0**2)", "sqrt(x12**2)"), ("sqrt(a0**2)", "sqrt(a15**2)"),
-                       ("x0*a2 + a5", "x12*a2 + a15")]:
+        for e0, e1 in [
+            ("sqrt(x0**2)", "sqrt(x12**2)"),
+            ("sqrt(a0**2)", "sqrt(a15**2)"),
+            ("x0*a2 + a5", "x12*a2 + a15"),
+        ]:
             with self.subTest(eq=e1):
                 self.assertTrue(np.isfinite(kp.logprior(e0)))
                 self.assertAlmostEqual(kp.logprior(e1), kp.logprior(e0), places=12)
@@ -651,16 +671,23 @@ class TestEdgeCases(unittest.TestCase):
         import sympy
 
         _require_sympy_114(self)
-        with open(os.path.join(os.path.dirname(__file__), "corpus_labels_sympy1.14.json")) as f:
+        with open(
+            os.path.join(os.path.dirname(__file__), "corpus_labels_sympy1.14.json")
+        ) as f:
             ref = json.load(f)
         for name in ("NewPhysics", "NewFeynman"):
             eqs = list(pd.read_csv(f"data/{name}.csv")["New Formula"])
             kp = KatzPrior(2, ref["basis_functions"], equations=eqs)
-            locs = {f"{c}{i}": sympy.Symbol(f"{c}{i}", real=True)
-                    for c in "xa" for i in range(kp.maxvar)}
+            locs = {
+                f"{c}{i}": sympy.Symbol(f"{c}{i}", real=True)
+                for c in "xa"
+                for i in range(kp.maxvar)
+            }
             for i, eq in enumerate(eqs):
                 with self.subTest(corpus=name, eq=eq):
-                    self.assertEqual(kp.coder.equation2labels(eq, locs), ref["labels"][name][i])
+                    self.assertEqual(
+                        kp.coder.equation2labels(eq, locs), ref["labels"][name][i]
+                    )
 
     def test_default_model_pickles(self):
         # the default (normalised) model survives pickling and copying, e.g. for
@@ -676,8 +703,9 @@ class TestEdgeCases(unittest.TestCase):
     def test_single_leaf_training_equation(self):
         # a single-leaf corpus equation contributes one root event to the training data
         eqs = ["x0", "x0 + x1", "sin(x0)*x1", "x0*x1 + x1"]
-        kp = KatzPrior(2, self.basis_functions, equations=eqs, root_context=False,
-                       normalise=False)
+        kp = KatzPrior(
+            2, self.basis_functions, equations=eqs, root_context=False, normalise=False
+        )
         none = kp.coder.code["None"]
         left, right = [], []
         for eq in eqs:
@@ -690,8 +718,9 @@ class TestEdgeCases(unittest.TestCase):
         words = [kp.coder.code[w] for w in ["x", "+", "*", "sin"]]
         for w in words:
             self.assertEqual(kp.backoff_left.get_pbo(w, ()), ref.get_pbo(w, ()))
-        self.assertNotEqual(kp.backoff_left.get_pbo(words[1], ()),
-                            double.get_pbo(words[1], ()))
+        self.assertNotEqual(
+            kp.backoff_left.get_pbo(words[1], ()), double.get_pbo(words[1], ())
+        )
 
     def test_corpus_without_binary_operators(self):
         eqs = ["sin(x0)", "exp(sqrt(x0))", "x0"]
@@ -707,9 +736,11 @@ class TestEdgeCases(unittest.TestCase):
         norm = KatzPrior(3, self.basis_functions, equations=eqs)
         none = norm.coder.code["None"]
         contexts = {
-            tuple(tt[-(norm.n + 1):-1])
+            tuple(tt[-(norm.n + 1) : -1])
             for eq in eqs
-            for tt in norm.coder.process_all_equations(norm.n + 1, [eq], norm.maxvar)[1:]
+            for tt in norm.coder.process_all_equations(norm.n + 1, [eq], norm.maxvar)[
+                1:
+            ]
             if tt[-1] != none
         }
         m, r = norm.backoff_right, raw.backoff_right
@@ -738,16 +769,28 @@ class TestEdgeCases(unittest.TestCase):
         t = kp.coder.process_all_equations(kp.n + 1, [eq], kp.maxvar)
         none = kp.coder.code["None"]
         p = [kp.backoff_left.get_pbo(tt[-2], tt[:-2]) for tt in t[1:]]
-        p += [kp.backoff_right.get_pbo(tt[-1], tt[-(kp.n + 1):-1]) for tt in t[1:]
-              if tt[-1] != none]
+        p += [
+            kp.backoff_right.get_pbo(tt[-1], tt[-(kp.n + 1) : -1])
+            for tt in t[1:]
+            if tt[-1] != none
+        ]
         return float(np.sum(np.log(p)))
 
 
 class TestPriorCache(unittest.TestCase):
     """compute_logprior reuses saved scores only if every input and output is unchanged"""
 
-    corpus = ["x0*sin(x0) + x0", "sin(x0)**2", "x0/(x0 + 1)", "sqrt(x0) + sin(x0)"]
-    basis = [["a", "x"], ["sqrt", "sin", "square", "inv"], ["+", "-", "*", "/", "pow"]]
+    corpus: ClassVar[list[str]] = [
+        "x0*sin(x0) + x0",
+        "sin(x0)**2",
+        "x0/(x0 + 1)",
+        "sqrt(x0) + sin(x0)",
+    ]
+    basis: ClassVar[list[list[str]]] = [
+        ["a", "x"],
+        ["sqrt", "sin", "square", "inv"],
+        ["+", "-", "*", "/", "pow"],
+    ]
 
     def _library(self, td, fcn, tree):
         d = os.path.join(td, "compl_1")
@@ -759,11 +802,21 @@ class TestPriorCache(unittest.TestCase):
         esr_prior.get_logconst(1, td)
 
     def _run(self, td, **kw):
-        esr_prior.compute_logprior(1, 2, self.basis, td, None, None,
-                                    prior_kwargs={"equations": self.corpus}, **kw)
+        esr_prior.compute_logprior(
+            1,
+            2,
+            self.basis,
+            td,
+            None,
+            None,
+            prior_kwargs={"equations": self.corpus},
+            **kw,
+        )
         base = os.path.join(td, "compl_1", "katz_")
-        return (float(np.loadtxt(base + "logprior_2_1.txt")),
-                os.stat(base + "prior_2_1.json").st_mtime_ns)
+        return (
+            float(np.loadtxt(base + "logprior_2_1.txt")),
+            os.stat(base + "prior_2_1.json").st_mtime_ns,
+        )
 
     def test_reuse_and_invalidation(self):
         kp = KatzPrior(2, self.basis, equations=self.corpus)
@@ -779,9 +832,11 @@ class TestPriorCache(unittest.TestCase):
             # changed constant penalties
             lc = os.path.join(td, "compl_1", "logconst_1.txt")
             np.savetxt(lc, [1.5])
-            v2, t2 = self._run(td)
+            _v2, t2 = self._run(td)
             self.assertNotEqual(t2, t1)
-            code = float(np.loadtxt(os.path.join(td, "compl_1", "katz_codelen_2_1.txt")))
+            code = float(
+                np.loadtxt(os.path.join(td, "compl_1", "katz_codelen_2_1.txt"))
+            )
             self.assertAlmostEqual(code, v1 + 1.5, places=10)
             # tampered output
             np.savetxt(os.path.join(td, "compl_1", "katz_logprior_2_1.txt"), [0.0])
@@ -791,7 +846,6 @@ class TestPriorCache(unittest.TestCase):
             # logconst follows the tree file
             self._library(td, "sqrt(x0)", ["sqrt", "x0"])
             self.assertEqual(float(np.loadtxt(lc)), 0.0)
-
 
     def test_esr_parser_in_code_hash(self):
         # the scores depend on ESR's parser, so a change to it must invalidate saved output
@@ -827,7 +881,13 @@ class TestPriorCache(unittest.TestCase):
                 f.write("['+', 'x0', 'x0']\n['+', 'x0', 'x1']\n")
             esr_prior.get_logconst(1, td)
             esr_prior.compute_logprior(
-                1, 2, self.basis, td, None, None, label="nan",
+                1,
+                2,
+                self.basis,
+                td,
+                None,
+                None,
+                label="nan",
                 prior_kwargs={"equations": ["x0 + x1"], "normalise": False},
             )
             vals = np.loadtxt(os.path.join(d, "nan_logprior_2_1.txt"))
