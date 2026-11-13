@@ -261,7 +261,8 @@ def _prior_config(n, basis_functions, prior_kwargs):
 
 def default_label(prior_kwargs):
     """Output-file prefix for a prior configuration: 'katz' plus the non-default options,
-    e.g. 'katz', 'katz_noroot', 'katz_noroot_unnorm' (the model of Bartlett et al. 2023)"""
+    e.g. 'katz', 'katz_noroot', 'katz_noroot_unnorm' (the model of version 0.2.1; the priors of
+    Bartlett et al. 2023 need version 0.1.0)"""
     label = "katz"
     if not prior_kwargs.get("root_context", True):
         label += "_noroot"
@@ -306,7 +307,7 @@ def compute_logprior(
         :overwrite (bool): Whether to overwrite files if they already exist
         :input_delimiter (str): The delimiter used in the input csv file
         :use_tree (bool, default=False): Whether to compute the prior using the tree representation from file (True) or using the string representation (False) and convert this to a tree automatically.
-        :prior_kwargs (dict, default=None): Extra keyword arguments passed to KatzPrior (e.g. {'root_context': False, 'normalise': False} for the model of Bartlett et al. 2023)
+        :prior_kwargs (dict, default=None): Extra keyword arguments passed to KatzPrior (e.g. {'root_context': False, 'normalise': False} for the model of version 0.2.1; the priors of Bartlett et al. 2023 need version 0.1.0, see README)
         :label (str, default=None): Prefix of the output files, so that priors from different models are not overwritten. If None, default_label(prior_kwargs) is used: 'katz' followed by '_noroot' and '_unnorm' for non-default options.
 
     Returns:

@@ -714,12 +714,12 @@ class TestEdgeCases(unittest.TestCase):
         }
         m, r = norm.backoff_right, raw.backoff_right
         raw_sums = [sum(r.get_pbo(w, h) for w in m.words) for h in contexts]
-        self.assertLess(min(raw_sums), 0.99)  # the original model loses mass
+        self.assertLess(min(raw_sums), 0.99)  # the unnormalised model loses mass
         for h in contexts:
             p = [m.get_pbo(w, h) for w in m.words]
             self.assertTrue(min(p) >= 0)
             self.assertAlmostEqual(sum(p), 1.0, places=12)
-        # BackOff itself is unchanged: normalise=False is the original model (the sums are
+        # BackOff itself is unchanged: normalise=False is the unnormalised model (the sums are
         # taken in a different order, so compare to rounding)
         self.assertAlmostEqual(
             raw.logprior("sin(x0) + x1"),
