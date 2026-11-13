@@ -1,4 +1,5 @@
 import csv
+import re
 import string
 
 import numpy as np
@@ -22,6 +23,8 @@ def split_by_punctuation(s):
     pun = string.punctuation.replace("_", "")  # allow underscores in variable names
     pun = pun + " "
     where_pun = [i for i in range(len(s)) if s[i] in pun]
+    if len(where_pun) == 0:  # e.g. a bare variable 'x0'
+        return [s]
     split_str = [s[: where_pun[0]]]
     for i in range(len(where_pun) - 1):
         split_str += [s[where_pun[i]]]
@@ -30,6 +33,21 @@ def split_by_punctuation(s):
     if where_pun[-1] != len(s) - 1:
         split_str += [s[where_pun[-1] + 1 :]]
     return split_str
+
+
+def count_variables(all_eq):
+    """
+    Number of variables x0, x1, ... needed to parse a list of equation strings, i.e. one
+    more than the largest variable index (at least 1)
+
+    Args:
+        :all_eq (list of str): Equations with variables named x0, x1, ...
+
+    Returns:
+        :maxvar (int): Largest variable index + 1
+    """
+    idx = [int(m) for eq in all_eq for m in re.findall(r"(?<![A-Za-z0-9_])x(\d+)", eq)]
+    return max(idx) + 1 if len(idx) > 0 else 1
 
 
 def standardise_file(in_name, out_name, input_delimiter):
@@ -51,11 +69,7 @@ def standardise_file(in_name, out_name, input_delimiter):
 
         df = pd.read_csv(out_name, delimiter=input_delimiter)
         all_eq = df["New Formula"].tolist()
-        maxvar = 0
-        for eq in all_eq:
-            f = split_by_punctuation(eq)
-            vars = [int(s[1:]) + 1 for s in f if s.startswith("x") and s[1:].isdigit()]
-            maxvar = max(maxvar, len(vars))
+        maxvar = count_variables(all_eq)
     else:
 
         df = pd.read_csv(in_name, delimiter=input_delimiter)
@@ -103,16 +117,18 @@ def standardise_file(in_name, out_name, input_delimiter):
 
 class SymbolCoder:
 
-    def __init__(self, basis_functions):
+    def __init__(self, basis_functions, root_context=False):
         """Class to encode equations as tuples of strings to be used by a back-off model
 
         Args:
             :basis_functions (list): List of basis functions to consider. Entries 0, 1 and 2 are lists of nullary, unary, and binary operators, respectively.
+            :root_context (bool, default=False): If True, lineages which reach the root are left-padded with the "None" codeword, so that the root and nodes near it are conditioned on an explicit start-of-tree context. If False (original behaviour), such tuples are simply shorter.
 
         Returns:
             SymbolCoder: A coder to encode equations
         """
         self.basis_functions = basis_functions
+        self.root_context = root_context
 
         self.sympy_numerics = [
             "Number",
@@ -198,10 +214,28 @@ class SymbolCoder:
             # Remove "None" at start of lineage
             idx = [i for i in range(len(tup)) if tup[i] != self.code["None"]]
             tup = tuple(tup[idx[0] :])
+            if self.root_context:
+                # Explicit start-of-tree context: pad back to the full length
+                tup = (self.code["None"],) * (n + 1 - len(tup)) + tup
+                tup = tup[-(n + 1) :]
             ntuples.append(tup)
 
-        # The parent node will not have been considered
-        ntuples = [(ntuples[0][0],)] + ntuples
+        # The root event, taken from the tree itself (the first lineage tuple is skipped
+        # when the root's children include an ignored operator); an ignored operator at the
+        # root is skipped like ignored ancestors in the lineages
+        root_node = nodes
+        while root_node.op in self.ignore_ops and len(root_node.children) > 0:
+            root_node = root_node.children[0]
+        root = self.op2codeword(root_node.op)
+        if self.root_context:
+            ntuples = [(self.code["None"],) * (n - 1) + (root,)] + ntuples
+        else:
+            ntuples = [(root,)] + ntuples
+
+        # A single-leaf tree has only the root event: the loop above also produced
+        # a (leaf, None) sibling tuple for it, which would count the root twice
+        if len(nodes.children) == 0:
+            ntuples = ntuples[:1]
 
         return ntuples
 
@@ -224,8 +258,13 @@ class SymbolCoder:
             if lab.lower() in self.sympy_numerics or generator.is_float(lab):
                 labels_changed[i] = "a"
 
-        # Get parent operators
-        s = generator.labels_to_shape(labels_changed, self.basis_functions)
+        # Get parent operators. Every x_i/a_i is a leaf, including variables beyond the
+        # corpus's range (the nullary basis lists only x0..x{maxvar-1}).
+        leaves = [lab for lab in labels_changed if re.fullmatch(r"[xa]\d+", lab)]
+        shape_basis = [list(self.basis_functions[0]) + leaves] + list(
+            self.basis_functions[1:]
+        )
+        s = generator.labels_to_shape(labels_changed, shape_basis)
         success, _, tree = generator.check_tree(s)
         assert success
 
@@ -251,6 +290,20 @@ class SymbolCoder:
             :ntuples (list); List of n-tuples which describe tree structure of function
 
         """
+        return self.labels2ntuples(n, self.equation2labels(eq, locs))
+
+    def equation2labels(self, eq, locs):
+        """
+        Convert an equation into the list of labels (prefix notation) of its tree
+
+        Args:
+            :eq (str): The equation to convert
+            :locs (dict): dictionary of string:sympy objects describing variables
+
+        Returns:
+            :labels (list): The labels of the tree nodes in prefix order, with numerical constants replaced by "a"
+
+        """
 
         expr, nodes, _ = generator.string_to_node(
             eq,
@@ -261,11 +314,11 @@ class SymbolCoder:
             check_ops=True,
         )
 
-        # Remove any operators we want to ignore ('Abs')
-        redo = False
-        for op in self.ignore_ops:
-            if op in eq:
-                redo = True
+        # Remove any operators we want to ignore ('Abs'). Look for them in the parsed
+        # expression as well as in the input, which may spell them differently ('abs')
+        redo = any(op in eq for op in self.ignore_ops) or any(
+            type(e).__name__ in self.ignore_ops for e in sympy.preorder_traversal(expr)
+        )
         if redo:
             s = str(expr)
             s = split_by_punctuation(s)
@@ -296,9 +349,8 @@ class SymbolCoder:
                 labels[i] = "a"
             else:
                 labels[i] = labels[i].lower()
-        ntuples = self.labels2ntuples(n, labels)
 
-        return ntuples
+        return labels
 
     def process_all_equations(self, n, all_eq, maxvar):
         """
@@ -313,11 +365,24 @@ class SymbolCoder:
             :ntuples (list): List of n-tuples which describe tree structures of the functions
         """
 
-        x = sympy.symbols([f"x{i}" for i in range(maxvar)], real=True)
-        a = sympy.symbols([f"a{i}" for i in range(maxvar)], real=True)
-        d1 = {f"x{i}": x[i] for i in range(len(x))}
-        d2 = {f"a{i}": a[i] for i in range(len(x))}
-        locs = {**d1, **d2}
+        # Real symbols for every x_i and a_i used, not just the corpus's variable range: an
+        # undeclared symbol would be parsed without assumptions (e.g. sqrt(a5**2) does not
+        # simplify to |a5|) and can fail to convert to a tree.
+        nsym = max(
+            [int(maxvar)]
+            + [
+                int(k) + 1
+                for eq in all_eq
+                if isinstance(eq, str)
+                for k in re.findall(r"(?<![A-Za-z_0-9])[xa](\d+)", eq)
+            ]
+        )
+        x = sympy.symbols([f"x{i}" for i in range(nsym)], real=True)
+        a = sympy.symbols([f"a{i}" for i in range(nsym)], real=True)
+        locs = {
+            **{f"x{i}": x[i] for i in range(nsym)},
+            **{f"a{i}": a[i] for i in range(nsym)},
+        }
 
         ntuples = []
         for eq in all_eq:
