@@ -201,8 +201,8 @@ Contributors
 
 Below is a list of contributors to this repository. 
 
-`Deaglan Bartlett <https://github.com/DeaglanBartlett>`_
-`Harry Desmond <https://github.com/harrydesmond>`_
+* `Deaglan Bartlett <https://github.com/DeaglanBartlett>`_
+* `Harry Desmond <https://github.com/harrydesmond>`_
 
 Documentation
 =============
