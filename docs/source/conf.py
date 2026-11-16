@@ -21,6 +21,19 @@ sys.path.insert(0, os.path.abspath("../../katz/"))
 sys.path.insert(0, os.path.abspath("../../scripts/"))
 
 autodoc_mock_imports = ["mpi4py", "astropy", "esr"]
+
+# The tutorial's examples are doctests (make doctest). They run from the repository root,
+# where data/ is, and the part that scores an ESR library is skipped without ESR and mpi4py
+doctest_global_setup = f"""
+import os
+os.chdir({os.path.abspath("../..")!r})
+try:
+    import esr.generation.duplicate_checker
+    import mpi4py.MPI
+    have_esr = True
+except ImportError:
+    have_esr = False
+"""
 # The classes are documented in their __init__ docstrings, so show these with the class
 autoclass_content = "both"
 
