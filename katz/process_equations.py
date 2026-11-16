@@ -56,9 +56,9 @@ def standardise_file(in_name, out_name, input_delimiter):
     Standardise the input equations used so that variables are named x0, x1, ..., x9
 
     Args:
-        :in_name (str): Name of file containing the equations to study. If None, then equations read from out_eqfile
+        :in_name (str): Name of file containing the equations to study. If None, then equations are read from out_eqfile
         :out_name (str): Name of file to output the new equations to
-        :input_delimiter (str): The delimiter used in the input csv file
+        :input_delimiter (str): The delimiter used in the input CSV file
 
     Returns:
         :all_eq (list): List of equations as strings with the standardised variable names
@@ -181,7 +181,7 @@ class SymbolCoder:
             :nodes (katz.tree_parser.DecoratedNode): Node object corresponding to the tree
 
         Returns:
-            :ntuples (list); List of n-tuples which describe tree structure of function
+            :ntuples (list): List of n-tuples which describe tree structure of function
 
         """
 
@@ -249,10 +249,10 @@ class SymbolCoder:
 
         Args:
             :n (int): The length of the n-tuples to produce
-            :labels (list): The list giving the equation to convert to an n-tuple
+            :labels (list): The list giving the equation to convert to n-tuples
 
         Returns:
-            :ntuples (list); List of n-tuples which describe tree structure of function
+            :ntuples (list): List of n-tuples which describe tree structure of function
 
         """
 
@@ -286,11 +286,11 @@ class SymbolCoder:
 
         Args:
             :n (int): The length of the n-tuples to produce
-            :eq (str): The equation to convert to an n-tuple
+            :eq (str): The equation to convert to n-tuples
             :locs (dict): dictionary of string:sympy objects describing variables
 
         Returns:
-            :ntuples (list); List of n-tuples which describe tree structure of function
+            :ntuples (list): List of n-tuples which describe tree structure of function
 
         """
         return self.labels2ntuples(n, self.equation2labels(eq, locs))

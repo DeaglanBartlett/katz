@@ -14,7 +14,7 @@ __version__ = "0.4.0"
 DEFAULT_KN_DISCOUNT = 0.8
 
 
-class KatzPrior:
+class FunctionPrior:
 
     def __init__(
         self,
@@ -32,7 +32,7 @@ class KatzPrior:
         right_backoff="sibling",
     ):
         """Class to evaluate the probability of a function based on an n-gram language model
-        (interpolated Kneser-Ney by default, or the Katz back-off model of Bartlett et al. 2023)
+        (interpolated Kneser-Ney by default, or the Katz back-off model of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__)
 
         Note: the default model changed in versions 0.3.0 (normalised Katz conditionals, root
         context) and 0.4.0 (Kneser-Ney smoothing). smoothing='katz', root_context=False,
@@ -49,19 +49,19 @@ class KatzPrior:
         Args:
             :n (int): The length of the n-tuples to consider
             :basis_functions (list): List of basis functions to consider. Entries 0, 1 and 2 are lists of nullary, unary, and binary operators, respectively.
-            :in_eqfile (str): Name of file containing the equations to study. If None, then equations read from out_eqfile
+            :in_eqfile (str): Name of file containing the equations to study. If None, then equations are read from out_eqfile
             :out_eqfile (str): Name of file to output the standardised equations to
-            :input_delimiter (str): The delimiter used in the input csv file
+            :input_delimiter (str): The delimiter used in the input CSV file
             :root_context (bool, default=True): Condition nodes near the root on an explicit start-of-tree context (see SymbolCoder). False gives the original representation, in which the root is predicted from the distribution of all first children
             :normalise (bool, default=True): For smoothing='katz', make every conditional distribution of the back-off models proper: negative or non-finite probabilities are set to zero and the rest divided by their sum over the vocabulary (see NormalisedBackOff). False gives the original Katz model, whose conditional probabilities need not sum to one. The Kneser-Ney model is normalised by construction and ignores this option
             :equations (list of str): Equations (with variables x0, x1, ...) to use as the corpus instead of reading a file. If given, in_eqfile and out_eqfile are ignored.
-            :smoothing (str, default='kn'): Language model used for the conditional probabilities: 'kn' (interpolated Kneser-Ney) or 'katz' (Katz back-off with Good-Turing discounting, as in Bartlett et al. 2023)
+            :smoothing (str, default='kn'): Language model used for the conditional probabilities: 'kn' (interpolated Kneser-Ney) or 'katz' (Katz back-off with Good-Turing discounting, as in `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__)
             :smoothing_kwargs (dict): Extra keyword arguments for the Kneser-Ney model: discounts (default DEFAULT_KN_DISCOUNT = 0.8 at all orders; 'mkn' for the Chen-Goodman modified Kneser-Ney estimates) and discount_scale
             :code_constants (bool, default=False): Code numerical constants and parameters as "a" rather than as variables (see SymbolCoder)
             :right_backoff (str, default='sibling'): Order in which the context of a right child is shortened when backing off. 'sibling' (original behaviour) drops the most distant ancestor first, so the last context kept is the left sibling. 'parent' (n >= 2) drops the left sibling first, so the last context kept is the parent.
 
         Returns:
-            KatzPrior: Prior model to find prior of a function given a previous set of equations
+            FunctionPrior: Prior model to find the prior of a function given a set of previous equations
 
         """
 
@@ -218,7 +218,7 @@ class KatzPrior:
         log-probability, then refit on the full corpus with the chosen discounts.
 
         Args:
-            :method (str, default='single'): 'single' (one discount D used at every order and count), 'count' (modified Kneser-Ney: discount D1 for n-grams seen once and D2+ for n-grams seen two or more times, the same at every order) or 'scale' (factor multiplying the Chen-Goodman estimates). On the Physics corpus 'count' improves on 'single' by ~0.1 nats per equation for n >= 4 and does not help for n <= 2.
+            :method (str, default='single'): 'single' (one discount D used at every order and count), 'count' (modified Kneser-Ney: discount D1 for n-grams seen once and D2+ for n-grams seen two or more times, the same at every order) or 'scale' (factor multiplying the Chen-Goodman estimates). On the physics corpus 'count' improves on 'single' by ~0.1 nats per equation for n >= 4 and does not help for n <= 2.
             :k (int, default=10): Number of folds
             :seed (int, default=0): Seed of the random assignment of equations to folds
             :grid (array, default=None): Values to try. Defaults to 0.05-1.0 ('single'), 0.1-2.0 ('scale') or all pairs (D1, D2+) with D1 = 0.05-1.0 and D2+ = 0.1-2.0 in steps of 0.05 and 0.1 ('count', an array of shape (M, 2))
@@ -352,5 +352,5 @@ class KatzPrior:
         return self.logprior_tuples(t)
 
 
-# Name that does not refer to a particular smoothing method
-FunctionPrior = KatzPrior
+# The name of FunctionPrior before version 0.4.0, kept for backwards compatibility
+KatzPrior = FunctionPrior

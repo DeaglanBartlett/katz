@@ -9,7 +9,7 @@ Version 0.4.0
 
 * **Kneser-Ney smoothing** (``smoothing='kn'``, the new default; ``katz.kneser_ney``):
   interpolated Kneser-Ney with absolute discounts (``D = 0.8`` at all orders by default),
-  which can be tuned by cross-validation on the corpus with ``KatzPrior.tune_discounts()``. On
+  which can be tuned by cross-validation on the corpus with ``FunctionPrior.tune_discounts()``. On
   held-out physics equations (leave one equation family out, root context, discounts tuned on
   the training folds, 159 equations) its codelength is lower than that of the normalised Katz model by
   0.27 +/- 0.10, 0.36 +/- 0.12, 0.56 +/- 0.17, 1.02 +/- 0.23 and 1.09 +/- 0.26 nats per
@@ -27,8 +27,9 @@ Version 0.4.0
   ``core_maths`` function libraries up to complexity 6.
 * New options: ``code_constants`` (code constants and parameters as ``a`` rather than as
   variables), ``right_backoff`` (order in which a right child's context is shortened) and
-  ``smoothing_kwargs`` (Kneser-Ney discounts). ``FunctionPrior`` is an alias of
-  ``KatzPrior``.
+  ``smoothing_kwargs`` (Kneser-Ney discounts).
+* The prior class is now ``FunctionPrior``, as it is no longer only a Katz model.
+  ``KatzPrior`` is kept as an alias of ``FunctionPrior`` for backwards compatibility.
 
 Version 0.3.0
 -------------
@@ -70,7 +71,7 @@ published priors, install the version used for them, e.g. version 0.1.0
   family out, 159 equations) by 1.59 +/- 0.07, 2.01 +/- 0.10 and 2.21 +/- 0.14 nats per
   equation at n = 2, 3 and 4. Normalisation alone contributes 0.07-0.15 nats, most of it from
   the zero probability of ``y`` where it cannot occur.
-* On the recovery benchmark of Bartlett et al. (2023) (ESR fits up to complexity 7 of
+* On the recovery benchmark of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__ (ESR fits up to complexity 7 of
   Nguyen-8 and Korns-1, 4, 6 and 7 mocks; 7 sample sizes and 5 noise realisations each, 175
   mocks), the generating function is ranked first in 54% of mocks at n = 2 and 61% at
   n = 3 with the new defaults, against 42% with the model of version 0.2.1 (n = 2) and 52%
@@ -86,11 +87,11 @@ published priors, install the version used for them, e.g. version 0.1.0
   function's log-prior in the original representation is now half its previous value, and no
   other prior changes. For corpora containing single-leaf equations, the corrected training
   counts can also change the priors of other functions.
-* **sympy >= 1.14 is required.** The trees of the corpus equations, and so the prior, depend
-  on the sympy version: older versions pull a numerical factor out of some square roots
+* **SymPy >= 1.14 is required.** The trees of the corpus equations, and so the prior, depend
+  on the SymPy version: older versions pull a numerical factor out of some square roots
   (e.g. ``sqrt(2*x0**2 + 4*x1)``), which changes the trees of 6 of the 161 physics and 2 of the
-  100 Feynman equations. The reference values of the tests are for sympy >= 1.14.
-  Installing this version upgrades older sympy installations, including environments shared
+  100 Feynman equations. The reference values of the tests are for SymPy >= 1.14.
+  Installing this version upgrades older SymPy installations, including environments shared
   with ESR (which accepts any version).
 * **Bug fixes that change no prior of the version 0.2.1 model for the corpora in** ``data/``: a
   bare variable (``x0``) could not be split into tokens; ``standardise_file`` with
@@ -103,7 +104,7 @@ published priors, install the version used for them, e.g. version 0.1.0
   ``katz_noroot_unnorm``, ...) and reused only if a JSON manifest shows that the prior
   configuration, the corpus, the candidate functions, the constant penalties, the scoring code
   (as parsed, so reformatting or editing comments does not invalidate saved priors) and the
-  katz and sympy versions are unchanged; rank 0 alone writes the standardised corpus;
+  katz and SymPy versions are unchanged; rank 0 alone writes the standardised corpus;
   functions that cannot be scored are NaN and counted; outputs are written atomically. Files
   labelled ``katz`` now hold the new default model; the model of version 0.2.1 is written as
   ``katz_noroot_unnorm`` (as by ``scripts/run_esr_prior.py``).

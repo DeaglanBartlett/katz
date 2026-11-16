@@ -1,0 +1,241 @@
+.. default-role:: math
+
+Theory
+======
+
+katz assigns a prior probability `P(f)` to a function `f` by treating its expression tree as a
+sequence of symbols, each predicted from the symbols around it, and estimating these
+predictions with an n-gram language model trained on a corpus of known equations
+(`Bartlett, Desmond & Ferreira 2023 <https://arxiv.org/abs/2304.06333>`_). This page
+describes how a function is turned into prediction events and the two language models that
+can be used to score them: the Katz back-off model of the original paper and interpolated
+Kneser-Ney smoothing, the default since version 0.4.0.
+
+
+Functions as trees
+------------------
+
+Each equation is parsed with `SymPy <https://www.sympy.org>`_ into a tree of nullary (leaf),
+unary and binary operators, using the same conventions as
+`Exhaustive Symbolic Regression <https://arxiv.org/abs/2211.11461>`_ (ESR), so that, for
+example, `x^2` is the unary operator ``square`` when it is in the basis set and ``pow`` with
+the exponent 2 otherwise. ``Abs``, ``re`` and ``im`` are removed. Each node is then coded as
+a symbol:
+
+* an operator is coded by its name (``sin``, ``+``, ``pow``, ...);
+* a leaf is coded ``x``, whether it is a variable, a numerical constant or a parameter, so
+  that physical constants in the corpus are treated like variables. With
+  ``code_constants=True``, constants and parameters are coded ``a`` instead;
+* the second child of a binary operator is coded ``y`` when both children are leaves coded
+  ``x`` and they differ (as in `x_0 x_1` or `2 x_0`), and ``x`` when they are the same leaf.
+
+Prediction events
+~~~~~~~~~~~~~~~~~
+
+A tree is described by the symbol at its root and, for every operator, the symbols of its
+children. Each of these is a prediction event: a word `w` predicted from a context `h` of
+`n` words, where `n` is the first argument of ``FunctionPrior``.
+
+* The **first (or only) child** of an operator is predicted from its `n` closest ancestors,
+  the parent being the last of them.
+* The **second child** of a binary operator is predicted from its `n - 1` closest ancestors
+  and its left sibling.
+* The **root** is predicted from a context of start-of-tree symbols `\varnothing`
+  (``root_context=True``, the default). Lineages that are shorter than `n` because they
+  reach the root are padded with the same symbol, so the nodes near the root are predicted
+  from their position in the tree. With ``root_context=False`` (the representation before
+  version 0.3.0) such contexts are simply shorter, and the root is predicted from the
+  distribution of all first children.
+
+For example, with `n = 2` and the default options, `f = x_0 \sin(x_1)` gives the events
+
+======================  ====================================  =======
+model                   context `h`                           word `w`
+======================  ====================================  =======
+first child             `(\varnothing, \varnothing)`          ``*``
+first child             `(\varnothing, \texttt{*})`           ``x``
+first child             `(\texttt{*}, \texttt{sin})`          ``x``
+second child            `(\texttt{*}, \texttt{x})`            ``sin``
+======================  ====================================  =======
+
+where the first row is the root. The events of the first and second children are modelled
+separately, by two conditional distributions `P_1(w \mid h)` and `P_2(w \mid h)` trained on
+the corresponding events of the corpus, and the prior of a function is the product over its
+events,
+
+.. math::
+
+   \log P(f) = \sum_{\text{first children}} \log P_1(w \mid h)
+             + \sum_{\text{second children}} \log P_2(w \mid h) .
+
+Each conditional distribution is normalised over the symbols that can be predicted (``x``,
+the operators of the basis set, ``a`` with ``code_constants=True`` and, for second children,
+``y``), so `P(f)` is a probability distribution over trees.
+
+When the context `h` was rarely or never seen in the corpus, both models fall back on
+shorter contexts `h^-`, obtained by dropping the most distant symbol of `h`. For a second
+child, ``right_backoff='sibling'`` (the default) drops the most distant ancestor first, so
+the left sibling is the last symbol kept; ``right_backoff='parent'`` drops the left sibling
+first, keeping the parent.
+
+Codelength in ESR
+~~~~~~~~~~~~~~~~~
+
+In ESR the description length of a function includes a term for its structure. The default
+term, `k \log n_\text{op}` for a tree of `k` nodes and a basis of `n_\text{op}` operators,
+treats every operator as equally likely in every position.
+``katz.esr_prior.compute_logprior`` replaces it with `-\log P(f)` and adds
+`\sum_i \log |c_i|` for the natural-number constants `c_i` of the function, as ESR does.
+
+
+Katz back-off model
+-------------------
+
+``smoothing='katz'`` uses the back-off model of
+`Katz (1987) <https://doi.org/10.1109/TASSP.1987.1165125>`_, as in
+`Bartlett, Desmond & Ferreira (2023) <https://arxiv.org/abs/2304.06333>`_. If the n-gram
+`hw` was seen in the corpus, its count `C(hw)` is discounted; otherwise the probability
+backs off to the shorter context:
+
+.. math::
+
+   P_\text{bo}(w \mid h) =
+   \begin{cases}
+     d_{hw} \, \dfrac{C(hw)}{C(h)}, & C(hw) > 0, \\[1ex]
+     \alpha(h) \, P_\text{bo}(w \mid h^-), & C(hw) = 0,
+   \end{cases}
+
+ending with the relative frequency `C(w)/N` of the word. The back-off weight
+
+.. math::
+
+   \alpha(h) = \frac{1 - \sum_{v : C(hv) > 0} d_{hv} \, C(hv) / C(h)}
+                    {1 - \sum_{v : C(hv) > 0} P_\text{bo}(v \mid h^-)}
+
+gives the probability reserved for unseen words to the words not seen after `h`, in
+proportion to their lower-order probabilities (`\alpha = 1` if `h` itself was never seen).
+The discount `d = r^* / r` of an n-gram seen `r` times is a Good-Turing estimate
+(`Good 1953 <https://doi.org/10.1093/biomet/40.3-4.237>`_),
+
+.. math::
+
+   r^* = (r + 1) \, \frac{S(r + 1)}{S(r)} ,
+
+where `S(r)` smooths the number of n-grams seen `r` times by a straight line in
+`\log S`-`\log r`, fitted to the counts of counts averaged over the gaps between them
+(`Gale & Sampson 1995 <https://doi.org/10.1080/09296179508590051>`_).
+
+This model has two weaknesses for small corpora such as equation corpora.
+
+* Its conditional probabilities need not sum to one. When the words seen after `h` are all
+  the words with non-zero lower-order probability, the denominator of `\alpha(h)` vanishes
+  and the reserved probability is lost; a fitted slope above `-1` inflates counts instead of
+  discounting them. With ``normalise=True`` (the default for Katz since version 0.3.0)
+  negative and non-finite values are set to zero and each conditional distribution is
+  divided by its sum over the vocabulary, after setting the probability of ``y`` to zero
+  wherever the left sibling is not a leaf (``y`` cannot occur there, but back-off gives it
+  probability).
+* The recursion ends in the relative frequency of each word, so a symbol never seen in a
+  given role has zero probability in every context. For example, a corpus in which ``inv``
+  is never a second child gives zero prior probability to every function in which it is, and
+  ESR then discards these functions.
+
+
+Interpolated Kneser-Ney
+-----------------------
+
+``smoothing='kn'`` (the default) uses interpolated Kneser-Ney smoothing
+(`Kneser & Ney 1995 <https://doi.org/10.1109/ICASSP.1995.479394>`_), in the form of
+`Chen & Goodman (1999) <https://doi.org/10.1006/csla.1999.0128>`_. Every context mixes its
+discounted counts with the distribution of the shorter context,
+
+.. math::
+
+   P_\text{KN}(w \mid h) = \frac{\max\bigl(c(hw) - D, 0\bigr)}{\sum_v c(hv)}
+                         + \gamma(h) \, P_\text{KN}(w \mid h^-) ,
+   \qquad
+   \gamma(h) = \frac{D \, N_{1+}(h \, \bullet)}{\sum_v c(hv)} ,
+
+where `N_{1+}(h \, \bullet)` is the number of different words seen after `h`, so that
+`\gamma(h)` is exactly the probability removed by discounting. The recursion ends in the
+uniform distribution `1/|V|` over the vocabulary `V`, and a context never seen is skipped.
+The distributions are therefore normalised by construction and every symbol of the basis set
+has a non-zero probability in every context.
+
+The counts `c` are raw counts for the longest contexts. At every shorter order they are
+continuation counts, `c(g) = N_{1+}(\bullet \, g)`, the number of different symbols seen
+before `g`: a symbol that appears in many contexts gets a high lower-order probability,
+while one that appears often but only in a single context does not. With
+``root_context=False``, an event whose context is shorter than `n` because it reaches the
+root cannot be extended, and is counted with its raw count, as n-grams that begin with a
+sentence-boundary symbol are in language models.
+
+The second leaf ``y`` can only follow a leaf, so its probability is set to zero after any
+other left sibling and the distribution renormalised.
+
+Discounts
+~~~~~~~~~
+
+By default `D = 0.8` at every order (``DEFAULT_KN_DISCOUNT``), close to the values chosen by
+cross-validation on the physics corpus. Other choices are
+
+* ``smoothing_kwargs={'discounts': D}``: a fixed discount, or an array of discounts by order;
+* ``smoothing_kwargs={'discounts': 'mkn'}``: modified Kneser-Ney, with separate discounts
+  `D_1, D_2, D_{3+}` for n-grams seen once, twice and more often, estimated from the counts
+  of counts `n_r` of each order (`Chen & Goodman 1999
+  <https://doi.org/10.1006/csla.1999.0128>`_),
+
+  .. math::
+
+     Y = \frac{n_1}{n_1 + 2 n_2} , \qquad
+     D_r = r - (r + 1) \, Y \, \frac{n_{r+1}}{n_r} ,
+
+  in which case `\gamma(h) = \sum_r D_r N_r(h \, \bullet) / \sum_v c(hv)`. These estimates
+  are noisy for corpora of fewer than about 100 equations;
+* ``FunctionPrior.tune_discounts()``: the discounts that minimise the negative log-probability of
+  held-out equations in k-fold cross-validation over the corpus, either a single `D`
+  (``method='single'``), separate `D_1` and `D_{2+}` (``method='count'``) or a factor
+  multiplying the Chen-Goodman estimates (``method='scale'``). The first and second children
+  are tuned separately.
+
+
+Which model to use
+------------------
+
+Kneser-Ney with the root context gives the lowest codelength of held-out equations and never
+assigns a function zero probability, although it does not improve on the Katz model in
+recovering known functions with ESR. The Katz model is also kept to compare with earlier
+work:
+``smoothing='katz', root_context=False, normalise=False`` gives the model of version 0.2.1,
+while priors computed before version 0.2.0, including those of
+`Bartlett, Desmond & Ferreira (2023) <https://arxiv.org/abs/2304.06333>`_ and
+`Sousa et al. (2024) <https://arxiv.org/abs/2310.16786>`_, need version 0.1.0. The
+:doc:`changelog` gives the effect of each change on held-out codelengths and on the recovery
+of known functions with ESR.
+
+
+References
+----------
+
+* D. J. Bartlett, H. Desmond and P. G. Ferreira (2023), *Priors for symbolic regression*,
+  `arXiv:2304.06333 <https://arxiv.org/abs/2304.06333>`_.
+* D. J. Bartlett, H. Desmond and P. G. Ferreira (2022), *Exhaustive Symbolic Regression*,
+  `arXiv:2211.11461 <https://arxiv.org/abs/2211.11461>`_.
+* S. F. Chen and J. Goodman (1999), *An empirical study of smoothing techniques for language
+  modeling*, Computer Speech & Language 13, 359,
+  `doi:10.1006/csla.1999.0128 <https://doi.org/10.1006/csla.1999.0128>`_.
+* W. A. Gale and G. Sampson (1995), *Good-Turing frequency estimation without tears*,
+  Journal of Quantitative Linguistics 2, 217,
+  `doi:10.1080/09296179508590051 <https://doi.org/10.1080/09296179508590051>`_.
+* I. J. Good (1953), *The population frequencies of species and the estimation of population
+  parameters*, Biometrika 40, 237,
+  `doi:10.1093/biomet/40.3-4.237 <https://doi.org/10.1093/biomet/40.3-4.237>`_.
+* S. M. Katz (1987), *Estimation of probabilities from sparse data for the language model
+  component of a speech recognizer*, IEEE Transactions on Acoustics, Speech, and Signal
+  Processing 35, 400,
+  `doi:10.1109/TASSP.1987.1165125 <https://doi.org/10.1109/TASSP.1987.1165125>`_.
+* R. Kneser and H. Ney (1995), *Improved backing-off for M-gram language modeling*,
+  Proceedings of ICASSP 1995, 181,
+  `doi:10.1109/ICASSP.1995.479394 <https://doi.org/10.1109/ICASSP.1995.479394>`_.
+* T. Sousa, D. J. Bartlett, H. Desmond and P. G. Ferreira (2024), *Optimal inflationary
+  potentials*, `arXiv:2310.16786 <https://arxiv.org/abs/2310.16786>`_.

@@ -62,7 +62,7 @@ class GoodTuring:
         Compute the smoothed frequency estimate, S
 
         Args:
-            :r (int): The number of occurences a given species was previous observed
+            :r (int): The number of times a given species was previously observed
 
         Returns:
             :S (float): The smoothed/adjusted estimate for the number of objects which occur r times
@@ -86,13 +86,13 @@ class GoodTuring:
 
     def expected_count(self, word):
         """
-        Compute the predicted number of times a word should appear in a text equal to the length of the corpus
+        Compute the predicted number of times a word should appear in a text of the same length as the corpus
 
         Args:
             :word: The word whose expected frequency we wish to find
 
         Returns:
-            float: The estimated freuqency of occurrence of this word in the corpus
+            float: The estimated frequency of occurrence of this word in the corpus
         """
         k = self.actual_count(word)
         return (k + 1) * self.get_S(k + 1) / self.get_S(k)

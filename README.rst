@@ -37,11 +37,11 @@ Katz
 About
 =====
 
-Symbolic Regression algorithms attempt to find analytic expressions which accurately
-fit a given data set. In many cases, one wants these to interpretable and thus one
+Symbolic regression algorithms attempt to find analytic expressions which accurately
+fit a given data set. In many cases, one wants these to be interpretable and thus one
 tries to find the simplest possible expression which can accurately fit the data. 
 Even if an expression is simple, if one is seeking a physical law, one may discard
-an expression because it does not look like one you would expect to see in this context.
+an expression because it does not look like the kind of expression one would expect in this context.
 To automate this process, we produce a prior on functions based on an n-gram language
 model of the operators in a function's tree: by studying a corpus of previously used
 equations in a given field, the model returns a probability for each function based on the
@@ -74,19 +74,22 @@ ESR in a new virtual environment, run
 Example
 ========
 
-To generate a 2-gram prior from the `AI Feynman function set <https://space.mit.edu/home/tegmark/aifeynman.html>`_ 
-(`arXiv:1905.11481 <https://arxiv.org/abs/1905.11481>`_) and evaluate this on some trial functions, run the following
+To generate a prior with ``n = 2`` from the equations of the AI Feynman database
+(`Udrescu & Tegmark 2020 <https://arxiv.org/abs/1905.11481>`_), which are included in
+``data/FeynmanEquations.csv``, and evaluate it on some trial functions, run the code below.
+Here ``n`` is the number of symbols from which each symbol is predicted, so ``n = 2`` gives a
+3-gram model (in general, ``n`` gives an (n+1)-gram model):
 
 .. code-block:: python
 
-	from katz.prior import KatzPrior
+	from katz.prior import FunctionPrior
 	
 	n = 2
 	basis_functions = [["a", "x"],
                 ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
                 ["+", "-", "*", "/", "pow"]]
     
-    	kp = KatzPrior(n, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
+    	kp = FunctionPrior(n, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
     	
 	for eq in ['x0**2', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))']:
             p = kp.logprior(eq)
@@ -106,7 +109,7 @@ instead be tuned by cross-validation on the corpus with ``tune_discounts()``, se
 ~100 equations). ``tune_discounts(method='count')`` tunes separate discounts for n-grams seen
 once and n-grams seen more than once (modified Kneser-Ney), which improves on a single tuned
 discount by ~0.1 nats per equation for ``n >= 4``. ``smoothing='katz'`` gives the Katz
-back-off model of Bartlett et al. (2023), with conditional probabilities normalised by
+back-off model of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__, with conditional probabilities normalised by
 default (``normalise=True``); ``smoothing='katz', root_context=False, normalise=False``
 gives the Katz model of version 0.2.1 (see version 0.3.0 in the `changelog <https://github.com/DeaglanBartlett/katz/blob/main/CHANGELOG.rst>`__).
 
@@ -121,12 +124,13 @@ variables, as physical constants are in the corpus, so e.g. ``pow(x0, a0)`` and
 
 .. code-block:: python
 
-	kp = KatzPrior(3, basis_functions, 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
-	               input_delimiter=';')
+	kp = FunctionPrior(3, basis_functions, 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
+	                  input_delimiter=';')
 	kp.tune_discounts()
 	print(kp.logprior('sin(x0) + sin(x1)'))
 
-``FunctionPrior`` is an alias of ``KatzPrior``. ``katz.esr_prior.compute_logprior``, which scores
+``KatzPrior``, the name of this class before version 0.4.0, is kept as an alias of
+``FunctionPrior`` for backwards compatibility. ``katz.esr_prior.compute_logprior``, which scores
 an ESR function library, names its output files after the prior configuration (e.g.
 ``kn_codelen_3_5.txt``, ``katz_noroot_unnorm_codelen_2_5.txt``) and writes a JSON
 manifest of the configuration and corpus beside them; existing files are reused only if the
@@ -141,7 +145,7 @@ versions, are listed in the `changelog <https://github.com/DeaglanBartlett/katz/
 Licence and Citation
 ====================
 
-Users are  required to cite the katz `Paper <https://arxiv.org/abs/2304.06333>`_
+Users are required to cite the katz `paper <https://arxiv.org/abs/2304.06333>`_:
 
 .. code:: bibtex
 
@@ -161,9 +165,9 @@ Users are  required to cite the katz `Paper <https://arxiv.org/abs/2304.06333>`_
   }
 
 
-Since this depends on the ESR package, 
-users are required to cite the ESR `Paper <https://arxiv.org/abs/2211.11461>`_
-for which the following bibtex can be used
+Since katz uses code that originated in the ESR package,
+users are required to cite the ESR `paper <https://arxiv.org/abs/2211.11461>`_,
+for which the following BibTeX can be used:
 
 .. code:: bibtex
 
@@ -182,7 +186,7 @@ for which the following bibtex can be used
 	  url = {https://arxiv.org/abs/2211.11461},
   }
 
-The software is available on the MIT licence:
+The software is available under the MIT licence:
 
 Copyright 2023 Deaglan J. Bartlett
 
@@ -203,7 +207,7 @@ Documentation
 =============
 
 The documentation for this project can be found
-`at this link <https://katz.readthedocs.io/>`_
+`at this link <https://katz.readthedocs.io/>`_.
 
 Acknowledgements
 ================

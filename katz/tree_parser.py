@@ -219,7 +219,7 @@ class DecoratedNode:
 
     def count_nodes(self, basis_functions):
         """
-        :basis_functions (list): list of lists basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
+        :basis_functions (list): list of lists of basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
         """
         return len(self.to_list(basis_functions))
 
@@ -382,7 +382,7 @@ def check_tree(s):
     """Given a candidate string of 0, 1 and 2s, see whether one can make a function out of this
 
     Args:
-        :s (str): string comprised of 0, 1 and 2 representing tree of nullary, unary and binary nodes
+        :s (str): string composed of 0, 1 and 2 representing tree of nullary, unary and binary nodes
 
     Returns:
         :success (bool): whether candidate string can form a valid tree (True) or not (False)
@@ -447,7 +447,7 @@ def check_tree(s):
 
 
 def string_to_expr(s, kern=False, evaluate=False, locs=None):
-    """Convert a string giving function into a sympy object
+    """Convert a string giving a function into a sympy object
 
     Args:
         :s (str): string representation of the function considered
@@ -486,7 +486,7 @@ def check_operators(nodes, basis_functions):
 
     Args:
         :nodes (DecoratedNode): Node representation of the function tree
-        :basis_functions (list): list of lists basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
+        :basis_functions (list): list of lists of basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
 
     Returns:
         :all_in_basis (bool): Whether all functions in tree are in basis
@@ -551,19 +551,20 @@ def check_operators(nodes, basis_functions):
 def string_to_node(
     s, basis_functions, locs=None, evalf=False, allow_eval=True, check_ops=False
 ):
-    """Convert a string giving function into a tree with labels
+    """Convert a string giving a function into a tree with labels
 
     Args:
         :s (str): string representation of the function considered
-        :basis_functions (list): list of lists basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
+        :basis_functions (list): list of lists of basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
         :locs (dict): dictionary of string:sympy objects. If None, will create here
         :evalf (bool): whether to run evalf() on function (default=False)
         :allow_eval (bool, default=True): whether to run the (kernS=False and evaluate=True) option
         :check_ops (bool, default=False): whether to check all operators appear in basis functions
 
     Returns:
-        :tree (list): list of Node objects corresponding to the tree
-        :labels (list): list of strings giving node labels of tree
+        :expr (sympy object): the expression from the parsing option (sympify or kernS, with or without evaluation) whose tree has the fewest nodes; if check_ops is True, options whose tree uses an operator outside the basis are only used if every option does
+        :nodes (DecoratedNode): the tree of expr
+        :c (int): the number of nodes in the tree
 
     """
 
@@ -636,10 +637,10 @@ def labels_to_shape(labels, basis_functions):
 
     Args:
         :labels (list): list of strings giving node labels of tree
-        :basis_functions (list): list of lists basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
+        :basis_functions (list): list of lists of basis functions. basis_functions[0] are nullary, basis_functions[1] are unary and basis_functions[2] are binary operators
 
     Returns:
-        :s (str): string comprised of 0, 1 and 2 representing tree of nullary, unary and binary nodes
+        :s (str): string composed of 0, 1 and 2 representing tree of nullary, unary and binary nodes
 
     """
 

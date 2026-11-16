@@ -59,16 +59,17 @@ process_equations
    :show-inheritance:
 
 
-scripts
--------
-
 esr_prior
 ~~~~~~~~~
 
-.. automodule:: scripts.esr_prior
+.. automodule:: katz.esr_prior
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+scripts
+-------
 
 
 fit_benchmark

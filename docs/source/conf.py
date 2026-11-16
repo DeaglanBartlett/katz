@@ -20,6 +20,8 @@ sys.path.insert(0, os.path.abspath("../../katz/"))
 sys.path.insert(0, os.path.abspath("../../scripts/"))
 
 autodoc_mock_imports = ["mpi4py", "astropy", "esr"]
+# The classes are documented in their __init__ docstrings, so show these with the class
+autoclass_content = "both"
 
 
 # -- Project information -----------------------------------------------------

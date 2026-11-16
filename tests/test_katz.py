@@ -925,8 +925,10 @@ class TestKatzPriorOptions(unittest.TestCase):
             ).tune_discounts()
 
     def test_default_is_kn(self):
-        """Kneser-Ney with a fixed discount is the default; FunctionPrior is an alias"""
+        """Kneser-Ney with a fixed discount is the default; KatzPrior is an alias"""
         from katz.prior import DEFAULT_KN_DISCOUNT, FunctionPrior
+
+        self.assertIs(KatzPrior, FunctionPrior)
 
         eqs = self.kp_kn.all_eq[:40]
         kp = FunctionPrior(2, self.basis_functions, equations=eqs)

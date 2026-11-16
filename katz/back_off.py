@@ -13,7 +13,7 @@ class BackOff:
             :corpus (list of tuples): Tuples of words which form the corpus
 
         Returns:
-            Backoff: Katz back-off model based on this corpus
+            BackOff: Katz back-off model based on this corpus
         """
 
         all_len = [len(s) for s in corpus]
@@ -124,11 +124,11 @@ class BackOff:
 
     def get_pbo(self, wnew, old_phrase):
         """
-        Compute the probability for word wnew given the preceeding set of words old_phrase
+        Compute the probability for word wnew given the preceding set of words old_phrase
 
         Args:
             :wnew (str): The new word we wish to know the probability of obtaining
-            :old_phrase (tuple): The preceeding phrase
+            :old_phrase (tuple): The preceding phrase
 
         Returns:
             :pbo (float): The conditional probability P(wnew|old_phrase)
@@ -164,7 +164,7 @@ class BackOff:
             len(old_phrase) > 0
             and self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0
         ):
-            # Never saw new phrase, but have an old phrase of length 1 which appears somehwere in corpus
+            # Never saw new phrase, but have an old phrase of length 1 which appears somewhere in corpus
             alpha, _ = self.get_alpha(old_phrase)  # alpha_{w_{i-1}}
             pbo = (
                 alpha
@@ -185,13 +185,13 @@ class NormalisedBackOff:
     or non-finite probabilities are set to zero and the rest divided by their sum over the
     vocabulary.
 
-    The Katz model of Bartlett et al. (2023) is not always normalised. When the seen
+    The Katz model of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__ is not always normalised. When the seen
     continuations of a context exhaust the support of the lower-order distribution, the mass
     reserved for unseen words is lost (the sum over words is then below one); and when the
     fitted Good-Turing slope is above -1, counts are inflated rather than discounted, which can
     give probabilities above one and negative back-off weights (in very small corpora); a
-    zero denominator in a back-off weight gives NaN. KatzPrior applies this wrapper by
-    default (normalise=True); BackOff itself is unchanged, so KatzPrior(..., smoothing='katz',
+    zero denominator in a back-off weight gives NaN. FunctionPrior applies this wrapper by
+    default (normalise=True); BackOff itself is unchanged, so FunctionPrior(..., smoothing='katz',
     root_context=False, normalise=False) gives the model of version 0.2.1, apart from the
     single-leaf correction.
 

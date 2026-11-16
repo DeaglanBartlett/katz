@@ -19,12 +19,12 @@ size = comm.Get_size()
 def get_sig(f, x_range, frac_sigx):
     """
     Determine the noise level to use. This is given as frac_sigx times
-    the standard deviation of the functions values evaluated on 10^5
+    the standard deviation of the function values evaluated on 10^5
     randomly generated points within the x_range
 
     Args:
         :f (str): The function which should be evaluated
-        :x_range (list[float, floar]): The [min, max] values of x to consider
+        :x_range (list[float, float]): The [min, max] values of x to consider
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
 
     Returns:
@@ -55,7 +55,7 @@ def make_data(name, f, x_range, nx, frac_sigx, samp_num, sig, make_fig=False):
     Args:
         :name (str): The name of the equation to be used
         :f (str): The function which should be evaluated
-        :x_range (list[float, floar]): The [min, max] values of x to consider
+        :x_range (list[float, float]): The [min, max] values of x to consider
         :nx (int): The number of data points to be used in the mock
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
         :samp_num (int): The mock number (which sets the seed of the random number generator)
@@ -118,7 +118,7 @@ class MockLikelihood:
         Args:
             :name (str): The name of the mock dataset
             :nx (int): Number of data points in mock
-            :fracsig_x (float): Fraction of std deviation used as errors
+            :fracsig_x (float): Fraction of the standard deviation used as errors
         """
 
         esr_dir = (
@@ -152,8 +152,8 @@ class MockLikelihood:
 
         Args:
             :xdata (float or np.array): input variable
-            :a (list): parameters to subsitute into equation considered
-            :eq_numpy (numpy function): function to use which gives H^2
+            :a (list): parameters to substitute into equation considered
+            :eq_numpy (numpy function): function to use which gives y
 
         Returns:
             :y (float or np.array): the predicted value of y
@@ -168,7 +168,7 @@ class MockLikelihood:
         """Negative log-likelihood for a given function
 
         Args:
-            :a (list): parameters to subsitute into equation considered
+            :a (list): parameters to substitute into equation considered
             :eq_numpy (numpy function): function to use which gives y
 
         Returns:
@@ -407,12 +407,12 @@ def process_data(dirname, final_prefix, all_comp):
     Args:
         :dirname (str): Directory name containing the optimisation results
         :final_prefix (str): Start of file names which contain result
-        :all_comp (list[int]): All complexity of equation to consider
+        :all_comp (list[int]): All complexities of equations to consider
 
     Returns:
         :fun (list[str]): The list of functions selected
         :res (np.ndarray): The terms used for model selection of the returned functions
-        :params (np.ndarray): The maximimum likelihood parameters of the returned functions
+        :params (np.ndarray): The maximum likelihood parameters of the returned functions
         :store_comp (np.ndarray): The complexities of the returned functions
 
     """
@@ -486,7 +486,7 @@ def remove_duplicates_and_sort(all_fun, all_loss, all_like, remove_by_like=True)
 
 def get_truth_location(fun, loss, all_true_eq):
     """
-    Find the highest ranked of the `true' equations
+    Find the highest ranked of the 'true' equations
 
     Args:
         :fun (list[str]): The list of functions
@@ -577,7 +577,7 @@ def _process_fit(
         :nx (int): The number of data points to be used in the mock
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
         :samp_num (int): The mock number
-        :all_comp (list[int]): All complexity of equation to consider
+        :all_comp (list[int]): All complexities of equations to consider
         :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
 
     Returns:
@@ -594,12 +594,12 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
     Process the results of all fits to give a function ranking according
     to different model selection methods. If all_true_eq is not None, then
     this will also find the location of the true equation in the rankings.
-    The results are outputted to a file called selection_summary.csv in
+    The results are written to a file called selection_summary.csv in
     the directory given by dirname.
 
     Args:
         :dirname (str): Directory name containing the optimisation results
-        :all_comp (list[int]): All complexity of equation to consider
+        :all_comp (list[int]): All complexities of equations to consider
         :nx (int): The number of data points to be used in the mock
         :all_true_eq (list[str] or None): List of variants of the true equation to find
         :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
