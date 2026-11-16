@@ -4,17 +4,52 @@ expression trees used by the function prior, using sympy only.
 The classes and functions below are copied from esr/generation/generator.py of the ESR
 package (https://github.com/DeaglanBartlett/ESR, MIT licence; Bartlett, Desmond & Ferreira
 2022), without the parts that need MPI or the rest of ESR, so that katz gives the same trees
-as ESR without requiring it. The only change is that string_to_expr uses an empty namespace
-when no `locs` are given. tests/test_katz.py checks that the n-tuples agree with those
+as ESR without requiring it. There are two changes: string_to_expr uses an empty namespace
+when no `locs` are given, and is_float evaluates only numbers and arithmetic instead of
+calling eval on the label. tests/test_katz.py checks that the n-tuples agree with those
 obtained with ESR when ESR is installed.
 """
 
 # The code is kept as in ESR, so that it can be compared line by line with its source.
 # ruff: noqa: BLE001, C419, D419, SIM114
 
+import ast
+import operator
+
 import numpy as np
 import sympy
 from sympy.core.sympify import kernS
+
+_ARITHMETIC = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _number(node):
+    """Value of a parsed expression made only of numeric literals and arithmetic"""
+    if isinstance(node, ast.Constant) and type(node.value) in (
+        int,
+        float,
+        complex,
+        bool,
+    ):
+        return node.value
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _ARITHMETIC:
+        return _ARITHMETIC[type(node.op)](_number(node.operand))
+    if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
+        left, right = _number(node.left), _number(node.right)
+        if isinstance(node.op, ast.Pow) and abs(right) > 1000 and abs(left) > 1:
+            raise OverflowError("exponent too large")
+        return _ARITHMETIC[type(node.op)](left, right)
+    raise ValueError("not a numeric expression")
 
 
 def is_float(string):
@@ -26,9 +61,11 @@ def is_float(string):
     Returns:
         bool: Whether the string is a float (True) or not (False).
 
+    Only numeric literals combined by arithmetic operators count (e.g. '2', '-1/3',
+    '1.5e-3'); unlike ESR's version, the string is never evaluated as code.
     """
     try:
-        float(eval(string))
+        float(_number(ast.parse(string.strip(), mode="eval").body))
         return True
     except Exception:
         return False

@@ -254,11 +254,12 @@ class TestESRPrior(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.comp = 5
-        esr.generation.duplicate_checker.main("core_maths", cls.comp)
-        # Location of the installed ESR package's function library (equal to
-        # ESR/esr/function_library/core_maths/ when ESR is cloned into the repo root)
-        cls.dirname = os.path.join(
-            os.path.dirname(esr.__file__), "function_library", "core_maths", ""
+        # The function library and all outputs go to a temporary directory, not into the
+        # installed ESR package (which concurrent test runs would share)
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.dirname = os.path.join(cls._tmp.name, "")
+        esr.generation.duplicate_checker.main(
+            "core_maths", cls.comp, fn_dir=cls.dirname
         )
         cls.n = 2
         cls.basis_functions = [
@@ -267,8 +268,12 @@ class TestESRPrior(unittest.TestCase):
             ["+", "-", "*", "/", "pow"],
         ]
         cls.in_eqfile = "data/FeynmanEquations.csv"
-        cls.out_eqfile = "data/NewFeynman.csv"
+        cls.out_eqfile = os.path.join(cls.dirname, "NewFeynman.csv")
         cls.input_delimiter = ","
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
 
     def test_compute_logprior(self):
 
@@ -384,6 +389,24 @@ class TestESRPrior(unittest.TestCase):
             ),
             "katz_noroot_unnorm",
         )
+        # non-default discounts and tuning are part of the label
+        for kw, label in [
+            ({"discounts": 0.8}, "kn"),
+            ({"discounts": 0.6}, "kn_D0.6"),
+            ({"discounts": "mkn"}, "kn_mkn"),
+            ({"discounts": "mkn", "discount_scale": 0.9}, "kn_mkn_x0.9"),
+        ]:
+            self.assertEqual(default_label({"smoothing_kwargs": kw}), label)
+        arrays = [
+            default_label({"smoothing_kwargs": {"discounts": d}})
+            for d in ([0.5, 0.7, 0.9], [0.5, 0.7, 0.8])
+        ]
+        self.assertTrue(all(a.startswith("kn_D") for a in arrays))
+        self.assertNotEqual(*arrays)
+        self.assertEqual(default_label({}, "single"), "kn_tuned")
+        self.assertEqual(
+            default_label({"root_context": False}, "count"), "kn_tunedcount_noroot"
+        )
         base = os.path.join(self.dirname, f"compl_{self.comp}", "")
         prior_file = base + f"clash_logprior_{self.n}_{self.comp}.txt"
         manifest_file = base + f"clash_prior_{self.n}_{self.comp}.json"
@@ -410,6 +433,47 @@ class TestESRPrior(unittest.TestCase):
         self.assertFalse(np.allclose(results[0][0], results[1][0], equal_nan=True))
         # ... and the same configuration is reused
         self.assertEqual(results[1][1], results[2][1])
+        # Discounts tuned before scoring: the priors of a prior tuned by hand, recorded in
+        # the manifest and the label
+        compute_logprior(
+            self.comp,
+            self.n,
+            self.basis_functions,
+            self.dirname,
+            self.in_eqfile,
+            self.out_eqfile,
+            input_delimiter=self.input_delimiter,
+            tune_discounts="single",
+        )
+        with open(base + f"kn_tuned_prior_{self.n}_{self.comp}.json") as f:
+            manifest = json.load(f)
+        self.assertEqual(manifest["config"]["tune_discounts"], "single")
+        kp = KatzPrior(
+            self.n,
+            self.basis_functions,
+            self.in_eqfile,
+            self.out_eqfile,
+            input_delimiter=self.input_delimiter,
+        )
+        res = kp.tune_discounts("single")
+        self.assertEqual(
+            manifest["tuned_discounts"], {side: res[side] for side in ("left", "right")}
+        )
+        with open(base + f"all_equations_{self.comp}.txt") as f:
+            eqs = [eq.strip() for eq in f][:30]
+        tuned = np.loadtxt(base + f"kn_tuned_logprior_{self.n}_{self.comp}.txt")[:30]
+        np.testing.assert_allclose(tuned, [-kp.logprior(eq) for eq in eqs])
+        with self.assertRaises(ValueError):
+            compute_logprior(
+                self.comp,
+                self.n,
+                self.basis_functions,
+                self.dirname,
+                self.in_eqfile,
+                self.out_eqfile,
+                prior_kwargs={"smoothing": "katz"},
+                tune_discounts="single",
+            )
         for f in os.listdir(base):
             if f.startswith("clash_"):
                 os.remove(base + f)
@@ -1733,6 +1797,24 @@ class TestTreeParser(unittest.TestCase):
                             "x0*x1", basis, allow_eval=True, check_ops=True
                         )
                     self.assertEqual((expr, c), (expected, 3))
+
+    def test_is_float_does_not_evaluate_code(self):
+        # numeric literals and arithmetic count as numbers; anything else is never evaluated
+        for s in ["2", "-1", "-1/3", "1.5e-3", "2**0.5", "1.00000000000000", " 3"]:
+            self.assertTrue(tree_parser.is_float(s), s)
+        for s in [
+            "x0",
+            "a0",
+            "pi",
+            "1/0",
+            "sqrt(2)",
+            "np.pi",
+            "10**100000",
+            "",
+            "__import__('os').getcwd()",
+            "(lambda: 1)()",
+        ]:
+            self.assertFalse(tree_parser.is_float(s), s)
 
 
 if __name__ == "__main__":

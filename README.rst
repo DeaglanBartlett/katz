@@ -102,8 +102,9 @@ Smoothing and representation options
 By default (``smoothing='kn'``) the conditional probabilities are estimated with
 interpolated Kneser-Ney smoothing, with a single absolute discount ``D = 0.8`` at all
 orders. This assigns a non-zero probability to every operator of the basis set in every
-context and is less sensitive to the choice of ``n`` than the Katz model. The discounts can
-instead be tuned by cross-validation on the corpus with ``tune_discounts()``, set with
+context and is less sensitive to the choice of ``n`` than the Katz model. The default
+discount was chosen on the physics corpus, so for other corpora tune the discounts by
+cross-validation with ``tune_discounts()``. They can also be set with
 ``smoothing_kwargs={'discounts': D}``, or estimated with the Chen-Goodman formulae
 (``smoothing_kwargs={'discounts': 'mkn'}``, not recommended for corpora of fewer than
 ~100 equations). ``tune_discounts(method='count')`` tunes separate discounts for n-grams seen
@@ -132,9 +133,19 @@ variables, as physical constants are in the corpus, so e.g. ``pow(x0, a0)`` and
 ``KatzPrior``, the name of this class before version 0.4.0, is kept as an alias of
 ``FunctionPrior`` for backwards compatibility. ``katz.esr_prior.compute_logprior``, which scores
 an ESR function library, names its output files after the prior configuration (e.g.
-``kn_codelen_3_5.txt``, ``katz_noroot_unnorm_codelen_2_5.txt``) and writes a JSON
-manifest of the configuration and corpus beside them; existing files are reused only if the
-manifest matches.
+``kn_codelen_3_5.txt``, ``kn_D0.6_codelen_3_5.txt``, ``kn_tuned_codelen_3_5.txt``,
+``katz_noroot_unnorm_codelen_2_5.txt``) and writes a JSON manifest of the configuration and
+corpus beside them; existing files are reused only if the manifest matches. With
+``tune_discounts`` it tunes the discounts on the corpus before scoring and records the tuned
+values in the manifest:
+
+.. code-block:: python
+
+	from katz.esr_prior import compute_logprior
+
+	compute_logprior(5, 3, basis_functions, 'ESR/esr/function_library/core_maths',
+	                 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
+	                 input_delimiter=';', tune_discounts='single')
 
 Changes
 =======
@@ -145,7 +156,7 @@ versions, are listed in the `changelog <https://github.com/DeaglanBartlett/katz/
 Licence and Citation
 ====================
 
-Users are required to cite the katz `paper <https://arxiv.org/abs/2304.06333>`_:
+Users are required to cite the katz `paper <https://arxiv.org/abs/2304.06333>`__:
 
 .. code:: bibtex
 
@@ -166,7 +177,7 @@ Users are required to cite the katz `paper <https://arxiv.org/abs/2304.06333>`_:
 
 
 Since katz uses code that originated in the ESR package,
-users are required to cite the ESR `paper <https://arxiv.org/abs/2211.11461>`_,
+users are required to cite the ESR `paper <https://arxiv.org/abs/2211.11461>`__,
 for which the following BibTeX can be used:
 
 .. code:: bibtex

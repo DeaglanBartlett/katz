@@ -47,3 +47,30 @@ jobs:
           files: ${{ github.workspace }}/coverage.xml
           # fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  esr-main:
+    # Checks that the built-in parser (katz.tree_parser) still gives the same trees as the
+    # current ESR parser. Non-blocking: a failure flags a change in ESR to review.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
+      - name: Setup MPI
+        uses: mpi4py/setup-mpi@v1
+        with:
+          mpi: 'openmpi'
+      - name: Clone ESR repository (main)
+        run: git clone --depth 1 https://github.com/DeaglanBartlett/ESR.git
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -e ESR
+          pip install -e .
+      - name: Compare the parsers
+        run: pytest tests/test_katz.py -k TestTreeParser

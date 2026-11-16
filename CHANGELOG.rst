@@ -30,6 +30,12 @@ Version 0.4.0
   ``smoothing_kwargs`` (Kneser-Ney discounts).
 * The prior class is now ``FunctionPrior``, as it is no longer only a Katz model.
   ``KatzPrior`` is kept as an alias of ``FunctionPrior`` for backwards compatibility.
+* ``katz.esr_prior.compute_logprior`` takes ``tune_discounts`` to tune the Kneser-Ney
+  discounts on the corpus before scoring, and records the tuned values in the manifest. The
+  output labels name non-default discounts (e.g. ``kn_D0.6``, ``kn_tuned``), so priors with
+  different discounts are written to different files.
+* ``is_float`` in the parser evaluates only numbers and arithmetic instead of calling
+  ``eval`` on the string.
 
 Version 0.3.0
 -------------

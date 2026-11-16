@@ -282,7 +282,7 @@ def get_logconst(comp, dirname, overwrite=False):
     return
 
 
-def _prior_config(n, basis_functions, prior_kwargs):
+def _prior_config(n, basis_functions, prior_kwargs, tune_discounts=None):
     """Complete (JSON-serialisable) configuration of the FunctionPrior built by compute_logprior"""
     import inspect
 
@@ -311,18 +311,47 @@ def _prior_config(n, basis_functions, prior_kwargs):
         k: np.asarray(v).tolist() if not isinstance(v, str) else v
         for k, v in skw.items()
     }
+    cfg["tune_discounts"] = tune_discounts
     cfg["n"] = int(n)
     cfg["basis_functions"] = [list(b) for b in basis_functions]
     return cfg
 
 
-def default_label(prior_kwargs):
+def _discount_label(smoothing_kwargs):
+    """Label suffix for non-default Kneser-Ney discounts, e.g. '_D0.6', '_mkn', '_mkn_x0.9'
+    or, for arrays of discounts, '_D' followed by a short hash of the values"""
+    import hashlib
+    import json
+
+    from katz.prior import DEFAULT_KN_DISCOUNT
+
+    d = (smoothing_kwargs or {}).get("discounts", DEFAULT_KN_DISCOUNT)
+    scale = float((smoothing_kwargs or {}).get("discount_scale", 1.0))
+    if isinstance(d, str):
+        out = f"_{d}"
+    elif np.ndim(d) == 0:
+        out = "" if float(d) == DEFAULT_KN_DISCOUNT else f"_D{float(d):g}"
+    else:
+        values = json.dumps(np.asarray(d, dtype=float).tolist())
+        out = "_D" + hashlib.sha256(values.encode()).hexdigest()[:8]
+    return out + (f"_x{scale:g}" if scale != 1.0 else "")
+
+
+def default_label(prior_kwargs, tune_discounts=None):
     """Output-file prefix for a prior configuration: the smoothing method plus the
-    non-default options, e.g. 'kn', 'kn_const', 'katz', 'katz_noroot_unnorm' (the last is the
-    Katz model of version 0.2.1; the priors of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__ need version 0.1.0)
+    non-default options, e.g. 'kn', 'kn_const', 'kn_D0.6', 'kn_tuned', 'katz',
+    'katz_noroot_unnorm' (the last is the Katz model of version 0.2.1; the priors of
+    `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__ need version 0.1.0)
     """
     smoothing = prior_kwargs.get("smoothing", "kn")
     label = smoothing
+    if smoothing == "kn":
+        if tune_discounts is not None:
+            label += (
+                "_tuned" if tune_discounts == "single" else f"_tuned{tune_discounts}"
+            )
+        else:
+            label += _discount_label(prior_kwargs.get("smoothing_kwargs"))
     if not prior_kwargs.get("root_context", True):
         label += "_noroot"
     if smoothing == "katz" and not prior_kwargs.get("normalise", True):
@@ -346,6 +375,7 @@ def compute_logprior(
     use_tree=False,
     prior_kwargs=None,
     label=None,
+    tune_discounts=None,
 ):
     """
     Compute the log of the function prior for all functions at a given complexity
@@ -372,7 +402,8 @@ def compute_logprior(
         :input_delimiter (str): The delimiter used in the input CSV file
         :use_tree (bool, default=False): Whether to compute the prior using the tree representation from file (True) or using the string representation (False) and convert this to a tree automatically.
         :prior_kwargs (dict, default=None): Extra keyword arguments passed to FunctionPrior (e.g. {'smoothing': 'katz', 'root_context': False, 'normalise': False} for the Katz model of version 0.2.1; the priors of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__ need version 0.1.0, see CHANGELOG.rst; the default is Kneser-Ney)
-        :label (str, default=None): Prefix of the output files, so that priors from different models are not overwritten. If None, default_label(prior_kwargs) is used: the smoothing method ('kn' or 'katz') followed by '_noroot', '_unnorm' (Katz only), '_const' and '_parent' for non-default options.
+        :label (str, default=None): Prefix of the output files, so that priors from different models are not overwritten. If None, default_label(prior_kwargs, tune_discounts) is used: the smoothing method ('kn' or 'katz') followed by the non-default Kneser-Ney discounts ('_D0.6', '_mkn', ...) or '_tuned', and by '_noroot', '_unnorm' (Katz only), '_const' and '_parent' for non-default options.
+        :tune_discounts (str, default=None): For Kneser-Ney, tune the discounts by cross-validation over the corpus before scoring, with FunctionPrior.tune_discounts(tune_discounts) ('single', 'count' or 'scale'); the tuned values are recorded in the manifest. None uses the discounts of prior_kwargs.
 
     Returns:
         :None
@@ -385,8 +416,13 @@ def compute_logprior(
     from katz.process_equations import standardise_file
 
     prior_kwargs = {} if prior_kwargs is None else dict(prior_kwargs)
+    if tune_discounts is not None:
+        if prior_kwargs.get("smoothing", "kn") != "kn":
+            raise ValueError("tune_discounts requires smoothing='kn'")
+        if tune_discounts not in ("single", "count", "scale"):
+            raise ValueError(f"Unknown tuning method: {tune_discounts}")
     if label is None:
-        label = default_label(prior_kwargs)
+        label = default_label(prior_kwargs, tune_discounts)
     suffix = f"_{n}_{comp}" + ("_tree" if use_tree else "")
     outname_code = dirname + f"/compl_{comp}/{label}_codelen{suffix}.txt"
     outname_prior = dirname + f"/compl_{comp}/{label}_logprior{suffix}.txt"
@@ -412,7 +448,7 @@ def compute_logprior(
 
     def manifest_and_reuse():
         manifest = {
-            "config": _prior_config(n, basis_functions, prior_kwargs),
+            "config": _prior_config(n, basis_functions, prior_kwargs, tune_discounts),
             "corpus_sha256": hashlib.sha256("\n".join(all_eq).encode()).hexdigest(),
             "corpus_size": len(all_eq),
             "comp": int(comp),
@@ -465,6 +501,11 @@ def compute_logprior(
         fcn_list_proc, _, _ = get_functions(comp, dirname)
 
     kp = FunctionPrior(n, basis_functions, equations=all_eq, **prior_kwargs)
+    tuned = None
+    if tune_discounts is not None:
+        # deterministic (fixed folds), so the same on every rank
+        res = kp.tune_discounts(tune_discounts)
+        tuned = {side: res[side] for side in ("left", "right")}
     logprior_proc = np.empty(len(fcn_list_proc))
     nbad = np.zeros(2, dtype=int)  # zoo (complex infinity), failed to parse/score
 
@@ -504,6 +545,8 @@ def compute_logprior(
         _savetxt_atomic(outname_prior, -logprior)
         # will use as replacement to aifeyn term, so need to sum these
         _savetxt_atomic(outname_code, -logprior + logconst)
+        if tuned is not None:
+            manifest["tuned_discounts"] = json.loads(json.dumps(tuned, default=float))
         manifest.update(
             n_functions=len(logprior),
             n_zoo=int(nbad[0]),

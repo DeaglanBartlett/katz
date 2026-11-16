@@ -133,7 +133,7 @@ This model has two weaknesses for small corpora such as equation corpora.
   discounting them. With ``normalise=True`` (the default for Katz since version 0.3.0)
   negative and non-finite values are set to zero and each conditional distribution is
   divided by its sum over the vocabulary, after setting the probability of ``y`` to zero
-  wherever the left sibling is not a leaf (``y`` cannot occur there, but back-off gives it
+  wherever the left sibling is not ``x`` (``y`` cannot occur there, but back-off gives it
   probability).
 * The recursion ends in the relative frequency of each word, so a symbol never seen in a
   given role has zero probability in every context. For example, a corpus in which ``inv``
@@ -170,33 +170,39 @@ while one that appears often but only in a single context does not. With
 root cannot be extended, and is counted with its raw count, as n-grams that begin with a
 sentence-boundary symbol are in language models.
 
-The second leaf ``y`` can only follow a leaf, so its probability is set to zero after any
+The second leaf ``y`` can only follow ``x``, so its probability is set to zero after any
 other left sibling and the distribution renormalised.
 
 Discounts
 ~~~~~~~~~
 
 By default `D = 0.8` at every order (``DEFAULT_KN_DISCOUNT``), close to the values chosen by
-cross-validation on the physics corpus. Other choices are
+cross-validation on the physics corpus; for other corpora the discounts should be tuned
+(below). Other choices are
 
-* ``smoothing_kwargs={'discounts': D}``: a fixed discount, or an array of discounts by order;
+* ``smoothing_kwargs={'discounts': D}``: a fixed discount, or an array of discounts by order
+  (shape ``(n + 1,)``) or by order and count (shape ``(n + 1, 3)``, as below);
 * ``smoothing_kwargs={'discounts': 'mkn'}``: modified Kneser-Ney, with separate discounts
-  `D_1, D_2, D_{3+}` for n-grams seen once, twice and more often, estimated from the counts
+  `D_1, D_2, D_{3+}` for n-grams seen once, twice and three or more times, estimated from the counts
   of counts `n_r` of each order (`Chen & Goodman 1999
   <https://doi.org/10.1006/csla.1999.0128>`_),
 
   .. math::
 
      Y = \frac{n_1}{n_1 + 2 n_2} , \qquad
-     D_r = r - (r + 1) \, Y \, \frac{n_{r+1}}{n_r} ,
+     D_r = r - (r + 1) \, Y \, \frac{n_{r+1}}{n_r} \quad (r = 1, 2, 3),
 
-  in which case `\gamma(h) = \sum_r D_r N_r(h \, \bullet) / \sum_v c(hv)`. These estimates
-  are noisy for corpora of fewer than about 100 equations;
-* ``FunctionPrior.tune_discounts()``: the discounts that minimise the negative log-probability of
-  held-out equations in k-fold cross-validation over the corpus, either a single `D`
-  (``method='single'``), separate `D_1` and `D_{2+}` (``method='count'``) or a factor
-  multiplying the Chen-Goodman estimates (``method='scale'``). The first and second children
-  are tuned separately.
+  each limited to at most `r`, in which case
+  `\gamma(h) = \sum_r D_r N_r(h \, \bullet) / \sum_v c(hv)`, where `N_r(h \, \bullet)` is
+  the number of words seen `r` times after `h` (`r` or more times for `r = 3`). These
+  estimates are noisy for corpora of fewer than about 100 equations;
+* ``FunctionPrior.tune_discounts()``: the discounts, chosen from a grid, that minimise the
+  negative log-probability of held-out equations in k-fold cross-validation over the corpus,
+  either a single `D` (``method='single'``), separate `D_1` and `D_{2+}`
+  (``method='count'``) or a factor multiplying the Chen-Goodman estimates
+  (``method='scale'``). The first and second children are tuned separately.
+  ``katz.esr_prior.compute_logprior(..., tune_discounts=method)`` tunes them before scoring
+  an ESR function library.
 
 
 Which model to use
