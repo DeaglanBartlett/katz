@@ -11,6 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.abspath("."))
@@ -27,11 +28,12 @@ autoclass_content = "both"
 # -- Project information -----------------------------------------------------
 
 project = "Katz"
-copyright = "2023, Deaglan J. Bartlett"
-author = "Deaglan J. Bartlett, Harry Desmond"
+copyright = "2023-2026, Deaglan J. Bartlett and Harry Desmond"
+author = "Deaglan J. Bartlett and Harry Desmond"
 
-# The full version, including alpha/beta/rc tags
-release = "0.0.1"
+# The full version, including alpha/beta/rc tags, read from the package as in setup.py
+with open(os.path.abspath("../../katz/prior.py")) as f:
+    release = re.search(r'^__version__ = "(.+)"', f.read(), re.MULTILINE).group(1)
 
 
 # -- General configuration ---------------------------------------------------
