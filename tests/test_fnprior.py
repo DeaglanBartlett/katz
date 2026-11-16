@@ -14,20 +14,20 @@ try:  # ESR is needed only to compare the built-in parser with it and for TestES
 except ImportError:
     HAVE_ESR = False
 
-try:  # katz.esr_prior needs mpi4py
-    from katz import esr_prior
-    from katz.esr_prior import compute_logprior, default_label, get_logconst
+try:  # fnprior.esr_prior needs mpi4py
+    from fnprior import esr_prior
+    from fnprior.esr_prior import compute_logprior, default_label, get_logconst
 
     HAVE_MPI = True
 except ImportError:
     HAVE_MPI = False
 
-from katz import tree_parser
-from katz.back_off import BackOff
-from katz.good_turing import GoodTuring
-from katz.kneser_ney import KneserNey, chen_goodman_discounts
-from katz.prior import KatzPrior
-from katz.process_equations import (
+from fnprior import data_path, tree_parser
+from fnprior.back_off import BackOff
+from fnprior.good_turing import GoodTuring
+from fnprior.kneser_ney import KneserNey, chen_goodman_discounts
+from fnprior.prior import KatzPrior
+from fnprior.process_equations import (
     SymbolCoder,
     count_variables,
     split_by_punctuation,
@@ -66,7 +66,7 @@ class TestKatzPrior(unittest.TestCase):
         cls.kp_feynman = KatzPrior(
             n,
             basis_functions,
-            "data/FeynmanEquations.csv",
+            data_path("FeynmanEquations.csv"),
             "data/NewFeynman.csv",
             root_context=False,
             normalise=False,
@@ -90,7 +90,7 @@ class TestKatzPrior(unittest.TestCase):
         cls.kp_physics = KatzPrior(
             n,
             basis_functions,
-            "data/PhysicsEquations.csv",
+            data_path("PhysicsEquations.csv"),
             "data/NewPhysics.csv",
             input_delimiter=";",
             root_context=False,
@@ -267,7 +267,7 @@ class TestESRPrior(unittest.TestCase):
             ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh", "inv"],
             ["+", "-", "*", "/", "pow"],
         ]
-        cls.in_eqfile = "data/FeynmanEquations.csv"
+        cls.in_eqfile = data_path("FeynmanEquations.csv")
         cls.out_eqfile = os.path.join(cls.dirname, "NewFeynman.csv")
         cls.input_delimiter = ","
 
@@ -767,7 +767,7 @@ class TestKatzPriorOptions(unittest.TestCase):
         """Kneser-Ney with root context is the default; Katz is normalised by default, and
         smoothing='katz', root_context=False, normalise=False gives the model of version
         0.2.1"""
-        from katz.back_off import NormalisedBackOff
+        from fnprior.back_off import NormalisedBackOff
 
         self.assertEqual(self.kp.smoothing, "kn")
         self.assertTrue(self.kp.root_context)
@@ -1005,7 +1005,7 @@ class TestKatzPriorOptions(unittest.TestCase):
 
     def test_default_is_kn(self):
         """Kneser-Ney with a fixed discount is the default; KatzPrior is an alias"""
-        from katz.prior import DEFAULT_KN_DISCOUNT, FunctionPrior
+        from fnprior.prior import DEFAULT_KN_DISCOUNT, FunctionPrior
 
         self.assertIs(KatzPrior, FunctionPrior)
 
@@ -1361,7 +1361,7 @@ class TestEdgeCases(unittest.TestCase):
                 self.assertAlmostEqual(p.sum(), 1.0, places=12)
 
 
-@unittest.skipUnless(HAVE_MPI, "katz.esr_prior needs mpi4py")
+@unittest.skipUnless(HAVE_MPI, "fnprior.esr_prior needs mpi4py")
 class TestPriorCache(unittest.TestCase):
     """compute_logprior reuses saved scores only if every input and output is unchanged"""
 
@@ -1679,9 +1679,9 @@ class TestTreeParser(unittest.TestCase):
 
     @unittest.skipUnless(HAVE_ESR, "ESR is not installed")
     def test_same_as_esr(self):
-        import katz.process_equations as pe
-
         import pandas as pd
+
+        import fnprior.process_equations as pe
 
         eqs = self.equations + list(pd.read_csv("data/NewPhysics.csv")["New Formula"])
         kp = KatzPrior(3, self.basis_functions, equations=eqs)  # basis x0 ... x10
@@ -1890,6 +1890,39 @@ class TestTreeParser(unittest.TestCase):
             "(lambda: 1)()",
         ]:
             self.assertFalse(tree_parser.is_float(s), s)
+
+
+class TestPackage(unittest.TestCase):
+    def test_data_path(self):
+        for name in ("PhysicsEquations.csv", "FeynmanEquations.csv"):
+            self.assertTrue(os.path.isfile(data_path(name)))
+        with self.assertRaisesRegex(FileNotFoundError, "PhysicsEquations.csv"):
+            data_path("NoSuchCorpus.csv")
+
+    def test_katz_is_an_alias_of_fnprior(self):
+        """katz, the name of the package before version 0.5.0, gives the fnprior modules
+        with a FutureWarning"""
+        import importlib
+        import sys
+
+        with self.assertWarnsRegex(FutureWarning, "renamed fnprior"):
+            if "katz" in sys.modules:
+                importlib.reload(sys.modules["katz"])
+            else:
+                importlib.import_module("katz")
+        import katz.tree_parser
+        from katz.prior import FunctionPrior as OldFunctionPrior
+        from katz.prior import KatzPrior as OldKatzPrior
+
+        import fnprior.prior
+        import fnprior.process_equations
+        from katz import process_equations
+
+        self.assertIs(OldFunctionPrior, fnprior.prior.FunctionPrior)
+        self.assertIs(OldKatzPrior, fnprior.prior.FunctionPrior)
+        self.assertIs(katz.tree_parser, tree_parser)
+        self.assertIs(process_equations, fnprior.process_equations)
+        self.assertEqual(katz.data_path("PhysicsEquations.csv"), data_path("PhysicsEquations.csv"))
 
 
 if __name__ == "__main__":

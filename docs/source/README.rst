@@ -1,17 +1,29 @@
-Katz
-----
+fnprior
+-------
 
-:Katz: Function prior for symbolic regression with an n-gram language model
+:fnprior: Priors on functions for symbolic regression from n-gram language models
 :Authors: Deaglan J. Bartlett, Harry Desmond
-:Homepage: https://github.com/DeaglanBartlett/katz 
-:Documentation: https://katz.readthedocs.io
+:Homepage: https://github.com/DeaglanBartlett/fnprior
+:Documentation: https://fnprior.readthedocs.io
 
-.. image:: https://readthedocs.org/projects/katz/badge/?version=latest
-  :target: https://katz.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/fnprior/badge/?version=latest
+  :target: https://fnprior.readthedocs.io/en/latest/?badge=latest
   :alt: Documentation Status
+
+.. image:: https://img.shields.io/pypi/v/fnprior.svg
+  :target: https://pypi.org/project/fnprior/
+  :alt: PyPI version
 
 .. image:: https://img.shields.io/badge/cs.LG-arXiv%32304.06333-B31B1B.svg
   :target: https://arxiv.org/abs/2304.06333
+
+.. note::
+
+   **fnprior was called katz before version 0.5.0.** The package was renamed because it now
+   offers more than the Katz back-off model, and because the name ``katz`` on PyPI belongs to
+   an unrelated package: ``pip install katz`` does not install this code. Code that imports
+   ``katz`` keeps working until version 0.8.0, with a ``FutureWarning``; replace ``katz`` by
+   ``fnprior`` in the imports (e.g. ``from fnprior.prior import FunctionPrior``).
 
 .. important::
 
@@ -22,7 +34,7 @@ Katz
    or earlier**, whose Katz model differs from that of later versions in the context of a right
    child, so that no setting of this version reproduces them (see version 0.3.0 in the :doc:`changelog`).
    To reproduce them, install the version used for them, e.g.
-   ``pip install git+https://github.com/DeaglanBartlett/katz.git@v0.1.0``.
+   ``pip install git+https://github.com/DeaglanBartlett/fnprior.git@v0.1.0``.
    ``smoothing='katz', root_context=False, normalise=False`` gives the Katz model of version
    0.2.1.
 
@@ -44,48 +56,58 @@ paper.
 Installation
 =============
 
-The prior itself needs only NumPy, SciPy, pandas and SymPy: equations are converted to trees by
-``katz.tree_parser``, which reproduces the parser of the
-`ESR Package <https://github.com/DeaglanBartlett/ESR>`_, so the prior can be used with any symbolic
-regression method. ESR (with ``mpi4py``) is needed only to score ESR function libraries with
-``katz.esr_prior`` and to run the ESR tests. SymPy 1.14 or later is required: older versions
-parse a few corpus equations differently (a numeric factor is taken out of a square root), which
-changes the prior by up to a few nats for some functions. To download and install the code with
-ESR in a new virtual environment, run
+fnprior is installed from PyPI with
 
 .. code:: bash
 
-	python3 -m venv katz_env
-	source katz_env/bin/activate
-	git clone git@github.com:DeaglanBartlett/ESR.git
+	pip install fnprior
+
+The prior itself needs only NumPy, SciPy, pandas and SymPy: equations are converted to trees by
+``fnprior.tree_parser``, which reproduces the parser of the
+`ESR Package <https://github.com/DeaglanBartlett/ESR>`_, so the prior can be used with any symbolic
+regression method. SymPy 1.14 or later is required: older versions parse a few corpus equations
+differently (a numeric factor is taken out of a square root), which changes the prior by up to a
+few nats for some functions.
+
+ESR and ``mpi4py`` are needed only to score ESR function libraries with ``fnprior.esr_prior`` and
+to run the ESR tests. ESR is not on PyPI, so install it from GitHub; ``pip install fnprior[esr]``
+installs ``mpi4py``. To install both from source in a new virtual environment, run
+
+.. code:: bash
+
+	python3 -m venv fnprior_env
+	source fnprior_env/bin/activate
+	git clone https://github.com/DeaglanBartlett/ESR.git
 	pip install -e ESR
-	git clone git@github.com:DeaglanBartlett/katz.git
-	pip install -e katz
+	git clone https://github.com/DeaglanBartlett/fnprior.git
+	pip install -e "fnprior[esr]"
 
 
 Example
 ========
 
 To generate a prior with ``n = 2`` from the equations of the AI Feynman database
-(`Udrescu & Tegmark 2020 <https://arxiv.org/abs/1905.11481>`_), which are included in
-``data/FeynmanEquations.csv``, and evaluate it on some trial functions, run the code below.
+(`Udrescu & Tegmark 2020 <https://arxiv.org/abs/1905.11481>`_), which are included in fnprior
+(``data_path`` gives the path of an included corpus), and evaluate it on some trial functions,
+run the code below. The standardised equations are written to ``NewFeynman.csv``.
 Here ``n`` is the number of symbols from which each symbol is predicted, so ``n = 2`` gives a
 3-gram model (in general, ``n`` gives an (n+1)-gram model):
 
 .. code-block:: python
 
-	from katz.prior import FunctionPrior
-	
+	from fnprior import data_path
+	from fnprior.prior import FunctionPrior
+
 	n = 2
 	basis_functions = [["a", "x"],
-                ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
-                ["+", "-", "*", "/", "pow"]]
-    
-    	kp = FunctionPrior(n, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv')
-    	
+	                   ["sqrt", "exp", "log", "sin", "cos", "arcsin", "tanh"],
+	                   ["+", "-", "*", "/", "pow"]]
+
+	kp = FunctionPrior(n, basis_functions, data_path('FeynmanEquations.csv'), 'NewFeynman.csv')
+
 	for eq in ['x0**2', 'sin(x0) + sin(x1)', 'sin(sin(x0+x1))']:
-            p = kp.logprior(eq)
-            print(eq, p)
+	    p = kp.logprior(eq)
+	    print(eq, p)
 
 
 Smoothing and representation options
@@ -123,13 +145,13 @@ variables, as physical constants are in the corpus, so e.g. ``pow(x0, a0)`` and
 	basis_functions = [["a", "x"],
 	                   ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh", "inv"],
 	                   ["+", "-", "*", "/", "pow"]]
-	kp = FunctionPrior(3, basis_functions, 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
+	kp = FunctionPrior(3, basis_functions, data_path('PhysicsEquations.csv'), 'NewPhysics.csv',
 	                   input_delimiter=';')
 	kp.tune_discounts()
 	print(kp.logprior('sin(x0) + sin(x1)'))
 
 ``KatzPrior``, the name of this class before version 0.4.0, is kept as an alias of
-``FunctionPrior`` for backwards compatibility. ``katz.esr_prior.compute_logprior``, which scores
+``FunctionPrior`` for backwards compatibility. ``fnprior.esr_prior.compute_logprior``, which scores
 an ESR function library, names its output files after the prior configuration (e.g.
 ``kn_codelen_3_5.txt``, ``kn_D0.6_codelen_3_5.txt``, ``kn_tuned_codelen_3_5.txt``,
 ``katz_noroot_unnorm_codelen_2_5.txt``) and writes a JSON manifest of the configuration and
@@ -139,12 +161,12 @@ values in the manifest:
 
 .. code-block:: python
 
-	from katz.esr_prior import compute_logprior, get_logconst
+	from fnprior.esr_prior import compute_logprior, get_logconst
 
 	dirname = 'ESR/esr/function_library/core_maths'
 	get_logconst(5, dirname)  # constant terms of the codelength, needed first
 	compute_logprior(5, 3, basis_functions, dirname,
-	                 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
+	                 data_path('PhysicsEquations.csv'), 'NewPhysics.csv',
 	                 input_delimiter=';', tune_discounts='single')
 
 Changes
@@ -156,7 +178,7 @@ versions, are listed in the :doc:`changelog`.
 Licence and Citation
 ====================
 
-Users are required to cite the katz `paper <https://arxiv.org/abs/2304.06333>`__:
+Users are required to cite the `paper <https://arxiv.org/abs/2304.06333>`__:
 
 .. code:: bibtex
 
@@ -176,7 +198,7 @@ Users are required to cite the katz `paper <https://arxiv.org/abs/2304.06333>`__
   }
 
 
-Since katz uses code that originated in the ESR package,
+Since fnprior uses code that originated in the ESR package,
 users are required to cite the ESR `paper <https://arxiv.org/abs/2211.11461>`__,
 for which the following BibTeX can be used:
 
@@ -219,4 +241,4 @@ Documentation
 =============
 
 The documentation for this project can be found
-`at this link <https://katz.readthedocs.io/>`_.
+`at this link <https://fnprior.readthedocs.io/>`_.

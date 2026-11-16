@@ -4,13 +4,15 @@
 API
 ===
 
-katz
-----
+fnprior
+-------
+
+.. autofunction:: fnprior.data_path
 
 back_off
 ~~~~~~~~
 
-.. automodule:: katz.back_off
+.. automodule:: fnprior.back_off
    :members:
    :undoc-members:
    :show-inheritance:
@@ -19,7 +21,7 @@ back_off
 kneser_ney
 ~~~~~~~~~~
 
-.. automodule:: katz.kneser_ney
+.. automodule:: fnprior.kneser_ney
    :members:
    :undoc-members:
    :show-inheritance:
@@ -28,7 +30,7 @@ kneser_ney
 good_turing
 ~~~~~~~~~~~
 
-.. automodule:: katz.good_turing
+.. automodule:: fnprior.good_turing
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,7 +38,7 @@ good_turing
 tree_parser
 ~~~~~~~~~~~
 
-.. automodule:: katz.tree_parser
+.. automodule:: fnprior.tree_parser
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,7 +46,7 @@ tree_parser
 prior
 ~~~~~~~~~
 
-.. automodule:: katz.prior
+.. automodule:: fnprior.prior
    :members:
    :undoc-members:
    :show-inheritance:
@@ -53,7 +55,7 @@ prior
 process_equations
 ~~~~~~~~~~~~~~~~~
 
-.. automodule:: katz.process_equations
+.. automodule:: fnprior.process_equations
    :members:
    :undoc-members:
    :show-inheritance:
@@ -62,7 +64,7 @@ process_equations
 esr_prior
 ~~~~~~~~~
 
-.. automodule:: katz.esr_prior
+.. automodule:: fnprior.esr_prior
    :members:
    :undoc-members:
    :show-inheritance:

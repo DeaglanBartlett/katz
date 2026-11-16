@@ -1,8 +1,27 @@
 Changelog
 =========
 
-Changes to katz by version. Releases are listed at
-https://github.com/DeaglanBartlett/katz/releases.
+Changes to fnprior (called katz before version 0.5.0) by version. Releases are listed at
+https://github.com/DeaglanBartlett/fnprior/releases.
+
+Version 0.5.0
+-------------
+
+* **Renamed from katz to fnprior**, as the package now offers more than the Katz back-off
+  model, and the name ``katz`` on PyPI belongs to an unrelated package. The package is now
+  on PyPI (``pip install fnprior``), and the repository and documentation have moved to
+  https://github.com/DeaglanBartlett/fnprior and https://fnprior.readthedocs.io. Replace
+  ``katz`` by ``fnprior`` in imports. ``import katz`` and ``katz.<module>`` still work and
+  give the fnprior modules themselves, with a ``FutureWarning``, until version 0.8.0. The
+  priors are unchanged.
+* The physics and AI Feynman corpora are included in the package; ``fnprior.data_path(name)``
+  gives the path of ``'PhysicsEquations.csv'`` or ``'FeynmanEquations.csv'``. They have
+  moved from ``data/`` to ``fnprior/data/`` in the repository.
+* ESR is not on PyPI, so the ``esr`` extra (``pip install fnprior[esr]``) installs only
+  ``mpi4py``; ESR itself is installed from GitHub (see the README).
+* The manifests written by ``fnprior.esr_prior.compute_logprior`` record
+  ``fnprior_version`` instead of ``katz_version``. As the package version and code have
+  changed, priors saved by earlier versions are recomputed once.
 
 Version 0.4.0
 -------------

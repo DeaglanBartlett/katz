@@ -3,7 +3,7 @@
 Theory
 ======
 
-katz assigns a prior probability `P(f)` to a function `f` by treating its expression tree as a
+fnprior assigns a prior probability `P(f)` to a function `f` by treating its expression tree as a
 sequence of symbols, each predicted from the symbols around it, and estimating these
 predictions with an n-gram language model trained on a corpus of known equations
 (`Bartlett, Desmond & Ferreira 2023 <https://arxiv.org/abs/2304.06333>`_). This page
@@ -88,7 +88,7 @@ Codelength in ESR
 In ESR the description length of a function includes a term for its structure. The default
 term, `k \log n_\text{op}` for a tree of `k` nodes and a basis of `n_\text{op}` operators,
 treats every operator as equally likely in every position.
-``katz.esr_prior.compute_logprior`` replaces it with `-\log P(f)` and adds
+``fnprior.esr_prior.compute_logprior`` replaces it with `-\log P(f)` and adds
 `\sum_i \log |c_i|` for the natural-number constants `c_i` of the function, as ESR does.
 
 
@@ -207,7 +207,7 @@ cross-validation on the physics corpus; for other corpora the discounts should b
   either a single `D` (``method='single'``), separate `D_1` and `D_{2+}`
   (``method='count'``) or a factor multiplying the Chen-Goodman estimates
   (``method='scale'``). The first and second children are tuned separately.
-  ``katz.esr_prior.compute_logprior(..., tune_discounts=method)`` tunes them before scoring
+  ``fnprior.esr_prior.compute_logprior(..., tune_discounts=method)`` tunes them before scoring
   an ESR function library.
 
 

@@ -1,10 +1,10 @@
 import numpy as np
 
-from katz.back_off import BackOff, FollowsRestriction, NormalisedBackOff
-from katz.kneser_ney import KneserNey
-from katz.process_equations import SymbolCoder, count_variables, standardise_file
+from fnprior.back_off import BackOff, FollowsRestriction, NormalisedBackOff
+from fnprior.kneser_ney import KneserNey
+from fnprior.process_equations import SymbolCoder, count_variables, standardise_file
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 
 # Discount used by the Kneser-Ney model unless smoothing_kwargs or tune_discounts() set one.

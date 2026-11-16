@@ -1,6 +1,6 @@
 import itertools
 
-from katz.good_turing import GoodTuring
+from fnprior.good_turing import GoodTuring
 
 
 class BackOff:

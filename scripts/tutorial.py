@@ -1,4 +1,5 @@
-from katz.prior import FunctionPrior
+from fnprior import data_path
+from fnprior.prior import FunctionPrior
 
 n = 2
 basis_functions = [
@@ -11,7 +12,7 @@ basis_functions = [
 # root_context=False, normalise=False for the Katz model of version 0.2.1 (Bartlett et al.
 # (2023) used version 0.1.0, which differs in the right-child model; see CHANGELOG.rst)
 kp = FunctionPrior(
-    n, basis_functions, "../data/FeynmanEquations.csv", "../data/NewFeynman.csv"
+    n, basis_functions, data_path("FeynmanEquations.csv"), "../data/NewFeynman.csv"
 )
 
 for eq in ["x0**2", "sin(x0) + sin(x1)", "sin(sin(x0+x1))"]:
