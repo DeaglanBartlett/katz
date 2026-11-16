@@ -2,7 +2,7 @@ Katz
 ----
 
 :Katz: Function prior for symbolic regression with an n-gram language model
-:Authors: Deaglan J. Bartlett
+:Authors: Deaglan J. Bartlett, Harry Desmond
 :Homepage: https://github.com/DeaglanBartlett/katz 
 :Documentation: https://katz.readthedocs.io
 
@@ -214,4 +214,3 @@ Documentation
 
 The documentation for this project can be found
 `at this link <https://katz.readthedocs.io/>`_.
-

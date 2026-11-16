@@ -28,7 +28,7 @@ autoclass_content = "both"
 
 project = "Katz"
 copyright = "2023, Deaglan J. Bartlett"
-author = "Deaglan J. Bartlett"
+author = "Deaglan J. Bartlett, Harry Desmond"
 
 # The full version, including alpha/beta/rc tags
 release = "0.0.1"

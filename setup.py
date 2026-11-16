@@ -10,7 +10,7 @@ setup(
     version=version,
     description="A Python package to produce priors on functions",
     url="https://github.com/DeaglanBartlett/katz",
-    author="Deaglan Bartlett",
+    author="Deaglan Bartlett, Harry Desmond",
     author_email="deaglan.bartlett@iap.fr",
     license="MIT licence",
     packages=["katz"],
