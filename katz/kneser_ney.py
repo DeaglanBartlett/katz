@@ -13,8 +13,8 @@ def chen_goodman_discounts(count_of_counts, fallback=0.5, min_discount=1e-3):
 
     Each D_r is clipped to [min_discount, r] so that every discounted count stays
     non-negative and some probability mass is always reserved for lower orders.
-    If a discount is undefined (a vanishing count-of-counts), it falls back to the
-    single absolute discount Y, or to `fallback` if Y is itself undefined.
+    If n_r = 0, D_r falls back to the single absolute discount Y. If n1 = 0 or n2 = 0,
+    no estimate is made and every discount is `fallback`.
 
     Args:
         :count_of_counts (dict): Maps a count r to the number of n-grams seen exactly r times

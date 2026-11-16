@@ -53,7 +53,7 @@ class FunctionPrior:
             :out_eqfile (str): Name of file to output the standardised equations to
             :input_delimiter (str): The delimiter used in the input CSV file
             :root_context (bool, default=True): Condition nodes near the root on an explicit start-of-tree context (see SymbolCoder). False gives the original representation, in which the root is predicted from the distribution of all first children
-            :normalise (bool, default=True): For smoothing='katz', make every conditional distribution of the back-off models proper: negative or non-finite probabilities are set to zero and the rest divided by their sum over the vocabulary (see NormalisedBackOff). False gives the original Katz model, whose conditional probabilities need not sum to one. The Kneser-Ney model is normalised by construction and ignores this option
+            :normalise (bool, default=True): For smoothing='katz', make every conditional distribution of the back-off models proper: negative or non-finite probabilities are set to zero and the rest divided by their sum over the vocabulary (see NormalisedBackOff; if nothing remains, every word of that context has zero probability). False gives the original Katz model, whose conditional probabilities need not sum to one. The Kneser-Ney model is normalised by construction and ignores this option
             :equations (list of str): Equations (with variables x0, x1, ...) to use as the corpus instead of reading a file. If given, in_eqfile and out_eqfile are ignored.
             :smoothing (str, default='kn'): Language model used for the conditional probabilities: 'kn' (interpolated Kneser-Ney) or 'katz' (Katz back-off with Good-Turing discounting, as in `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__)
             :smoothing_kwargs (dict): Extra keyword arguments for the Kneser-Ney model: discounts (default DEFAULT_KN_DISCOUNT = 0.8 at all orders; 'mkn' for the Chen-Goodman modified Kneser-Ney estimates) and discount_scale
@@ -129,10 +129,16 @@ class FunctionPrior:
         self._follows = {self.coder.code["y"]: self.coder.code["x"]}
         self._sibling_position = -1 if right_backoff == "sibling" else 0
 
-        self.eq_tuples = [
-            self.coder.process_all_equations(n + 1, [eq], self.maxvar)
-            for eq in self.all_eq
-        ]
+        self.eq_tuples = []
+        for eq in self.all_eq:
+            try:
+                tuples = self.coder.process_all_equations(n + 1, [eq], self.maxvar)
+            except Exception as e:
+                raise ValueError(
+                    f"Cannot code the corpus equation {eq!r} with this basis "
+                    "(is one of its operators missing from basis_functions?)"
+                ) from e
+            self.eq_tuples.append(tuples)
         self.fit(self.eq_tuples)
 
     def _right_tuple(self, tt):

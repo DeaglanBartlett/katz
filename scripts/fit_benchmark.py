@@ -6,7 +6,13 @@ import esr.generation.simplifier
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy
-from esr.fitting import combine_DL, match, plot, test_all, test_all_Fisher
+from esr.fitting import match, plot, test_all
+
+try:  # ESR renamed these modules
+    from esr.fitting import combine_dl as combine_DL
+    from esr.fitting import test_all_fisher as test_all_Fisher
+except ImportError:
+    from esr.fitting import combine_DL, test_all_Fisher
 from esr.fitting.sympy_symbols import *
 from mpi4py import MPI
 from sympy.abc import x
@@ -14,6 +20,14 @@ from sympy.abc import x
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
+
+# Prior files read from the function library, {PRIOR_LABEL}_codelen_{PRIOR_N}_{comp}.txt and
+# {PRIOR_LABEL}_logprior_{PRIOR_N}_{comp}.txt, as written by katz.esr_prior.compute_logprior
+# with use_tree=False and the same label (e.g. 'kn' for the default model,
+# 'katz_noroot_unnorm' for the Katz model of version 0.2.1; see CHANGELOG.rst)
+PRIOR_LABEL = "katz"
+PRIOR_N = 2
+LM = f"{PRIOR_LABEL}_{PRIOR_N}"
 
 
 def get_sig(f, x_range, frac_sigx):
@@ -326,10 +340,10 @@ def apply_language_prior(likelihood, comp, tmax=5):
 
     # INCLUDE LOG(CONST) TERMS
 
-    likelihood.fnprior_prefix = "katz_codelen_2_"
-    likelihood.combineDL_prefix = "combine_DL_katz_2_"
-    likelihood.final_prefix = "final_katz_2_"
-    likelihood.fig_dir += "_katz_2"
+    likelihood.fnprior_prefix = f"{PRIOR_LABEL}_codelen_{PRIOR_N}_"
+    likelihood.combineDL_prefix = f"combine_DL_{LM}_"
+    likelihood.final_prefix = f"final_{LM}_"
+    likelihood.fig_dir += f"_{LM}"
 
     print_text("combine_DL language model (with const)")
     combine_DL.main(comp, likelihood)
@@ -341,10 +355,10 @@ def apply_language_prior(likelihood, comp, tmax=5):
 
     # NO LOG(CONST) TERMS
 
-    likelihood.fnprior_prefix = "katz_logprior_2_"
-    likelihood.combineDL_prefix = "combine_DL_noconst_katz_2_"
-    likelihood.final_prefix = "final_noconst_katz_2_"
-    likelihood.fig_dir += "_noconst_katz_2"
+    likelihood.fnprior_prefix = f"{PRIOR_LABEL}_logprior_{PRIOR_N}_"
+    likelihood.combineDL_prefix = f"combine_DL_noconst_{LM}_"
+    likelihood.final_prefix = f"final_noconst_{LM}_"
+    likelihood.fig_dir += f"_noconst_{LM}"
 
     print_text("combine_DL language model (no const)")
     combine_DL.main(comp, likelihood)
@@ -649,7 +663,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
         print("\nMethod 3", dirname, m3_fun[: min(len(m3_fun), 4)])
 
     # METHOD 4: MDL with language model prior
-    fun, res, params, store_comp = process_data(dirname, "final_katz_2_", all_comp)
+    fun, res, params, store_comp = process_data(dirname, f"final_{LM}_", all_comp)
     m4_ftrue, m4_ltrue = get_truth_location(fun, res[:, 0], all_true_eq)
     fun, loss, _ = remove_duplicates_and_sort(
         fun, res[:, 0], res[:, 2], remove_by_like=remove_by_like
@@ -663,7 +677,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
     nup = np.exp(1 - np.log(3))
 
     # METHOD 5: MDL with FBF and Language Model Prior
-    fun, res, params, store_comp = process_data(dirname, "final_katz_2_", all_comp)
+    fun, res, params, store_comp = process_data(dirname, f"final_{LM}_", all_comp)
     m = params != 0
     p = np.sum(m, axis=1)
     loss = (
@@ -685,7 +699,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
 
     # METHOD 6: Evidence with FBF and Language Model Priors
     fun, res, params, store_comp = process_data(
-        dirname, "final_noconst_katz_2_", all_comp
+        dirname, f"final_noconst_{LM}_", all_comp
     )
     m = params != 0
     p = np.sum(m, axis=1)

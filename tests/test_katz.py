@@ -403,6 +403,11 @@ class TestESRPrior(unittest.TestCase):
         ]
         self.assertTrue(all(a.startswith("kn_D") for a in arrays))
         self.assertNotEqual(*arrays)
+        close = [  # scalars are labelled at full precision
+            default_label({"smoothing_kwargs": {"discounts": d, "discount_scale": d}})
+            for d in (0.8000001, 0.8000002)
+        ]
+        self.assertNotEqual(*close)
         self.assertEqual(default_label({}, "single"), "kn_tuned")
         self.assertEqual(
             default_label({"root_context": False}, "count"), "kn_tunedcount_noroot"
@@ -1515,6 +1520,26 @@ class TestPriorCache(unittest.TestCase):
         ):
             esr_prior._on_root(fail)
 
+    def test_rank_errors_reach_every_rank(self):
+        """_on_all: an error on any rank (e.g. a malformed tree file) is raised on all"""
+        from unittest import mock
+
+        self.assertEqual(esr_prior._on_all(lambda: 42), 42)
+
+        def fail():
+            raise SyntaxError("bad tree")
+
+        with self.assertRaisesRegex(SyntaxError, "bad tree"):
+            esr_prior._on_all(fail)  # the failing rank raises the original exception
+        # a rank that succeeded learns of the failure on rank 1 and raises a RuntimeError
+        comm = mock.Mock()
+        comm.allgather.return_value = [None, "SyntaxError: bad tree"]
+        with (
+            mock.patch.object(esr_prior, "comm", comm),
+            self.assertRaisesRegex(RuntimeError, "rank 1: SyntaxError: bad tree"),
+        ):
+            esr_prior._on_all(lambda: 42)
+
     def test_default_label_options(self):
         self.assertEqual(default_label({}), "kn")
         self.assertEqual(
@@ -1529,6 +1554,36 @@ class TestPriorCache(unittest.TestCase):
         )
         # normalise does not apply to Kneser-Ney, so it does not enter the label
         self.assertEqual(default_label({"normalise": False}), "kn")
+
+    def test_logconst_of_large_integers(self):
+        """Integers beyond int64, or whose absolute value is, give finite penalties, and a
+        saved NaN penalty is recomputed"""
+        import json
+
+        cases = [
+            ("100000000000000000000", 20 * np.log(10)),
+            ("-9223372036854775808", 63 * np.log(2)),
+            ("0", 0.0),
+            ("-3", np.log(3)),
+            (str(10**400), 400 * np.log(10)),
+        ]
+        for label, expected in cases:
+            self.assertAlmostEqual(esr_prior._logconst(["*", label, "x0"]), expected)
+        with tempfile.TemporaryDirectory() as td:
+            self._library(td, "x0", ["*", "-9223372036854775808", "x0"])
+            outname = os.path.join(td, "compl_1", "logconst_1.txt")
+            esr_prior.get_logconst(1, td)
+            self.assertAlmostEqual(float(np.loadtxt(outname)), 63 * np.log(2))
+            # a NaN penalty with a valid record, as an earlier version wrote it
+            np.savetxt(outname, [np.nan])
+            sidecar = os.path.join(td, "compl_1", "logconst_1.json")
+            with open(sidecar) as f:
+                meta = json.load(f)
+            meta["logconst_sha256"] = esr_prior._sha256(outname)
+            with open(sidecar, "w") as f:
+                json.dump(meta, f)
+            esr_prior.get_logconst(1, td)
+            self.assertAlmostEqual(float(np.loadtxt(outname)), 63 * np.log(2))
 
     def test_unreadable_logconst_record_is_recomputed(self):
         import json
@@ -1649,7 +1704,9 @@ class TestTreeParser(unittest.TestCase):
             (x**3, plain, unary, ["cube", "x"]),
             (x**3, unary, plain, ["pow", "x", "3"]),
             (1 / x, plain, unary, ["Inv", "x"]),
-            # a product with a power and -1, as a Mul and as a Div
+            # a product with a power and -1, as a Mul and as a Div. These labels reproduce
+            # ESR's parser, which drops the power here (an incomplete tree); the prior parses
+            # with evalf=True, which orders the product as (-1, power) and avoids this branch
             (sympy.Mul(x**2, -1, evaluate=False), plain, plain, ["Mul", "-1"]),
             (
                 sympy.Mul(x**2, sympy.Pow(-1, -1, evaluate=False), evaluate=False),

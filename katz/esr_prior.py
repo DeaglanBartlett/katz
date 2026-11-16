@@ -213,6 +213,37 @@ def _on_root(fn):
     return result
 
 
+def _on_all(fn):
+    """Run fn() on every rank. An exception on any rank is raised on every rank (on the
+    others as a RuntimeError), so that no rank is left waiting in a later collective
+    operation."""
+    result, err = None, None
+    try:
+        result = fn()
+    except Exception as e:  # noqa: BLE001
+        err = e
+    msgs = comm.allgather(None if err is None else f"{type(err).__name__}: {err}")
+    if err is not None:
+        raise err
+    failed = [f"rank {r}: {m}" for r, m in enumerate(msgs) if m is not None]
+    if failed:
+        raise RuntimeError("failed on " + "; ".join(failed))
+    return result
+
+
+def _logconst(tree):
+    """sum(log|c|) over the integer labels c of a tree (0 counts as 1). The integers are
+    converted to floats first, so that large ones cannot overflow a fixed-width integer;
+    those beyond the float range use math.log of the exact integer"""
+    import math
+
+    ints = [abs(int(tt)) for tt in tree if tt.lstrip("-").isdigit()]
+    huge = sum(math.log(v) for v in ints if v > 1e300)
+    n = np.array([float(v) for v in ints if v <= 1e300])
+    n[n == 0] = 1  # So we have log(1) for 0 instead of log(0)
+    return np.sum(np.log(n)) + huge
+
+
 def get_logconst(comp, dirname, overwrite=False):
     """
     Determine the sum(log(c_i)) for constants c_i appearing in all equations
@@ -241,9 +272,12 @@ def get_logconst(comp, dirname, overwrite=False):
         try:
             with open(sidecar) as f:
                 meta = json.load(f)
-            reuse = meta.get("trees_sha256") == _sha256(treename) and meta.get(
-                "logconst_sha256"
-            ) == _sha256(outname)
+            reuse = (
+                meta.get("trees_sha256") == _sha256(treename)
+                and meta.get("logconst_sha256") == _sha256(outname)
+                # earlier versions could write NaN for very large integers
+                and bool(np.all(np.isfinite(np.loadtxt(outname, ndmin=1))))
+            )
         except (OSError, ValueError):
             reuse = False
         if not reuse:
@@ -256,13 +290,7 @@ def get_logconst(comp, dirname, overwrite=False):
     if _on_root(check_reuse):
         return
 
-    tree_list = get_trees(comp, dirname)
-    logconst = [None] * len(tree_list)
-    for i, tree in enumerate(tree_list):
-        n = np.array([int(tt) for tt in tree if tt.lstrip("-").isdigit()])  # Integers
-        n[n == 0] = 1  # So we have log(1) for 0 instead of log(0)
-        logconst[i] = np.sum(np.log(np.abs(n)))
-
+    logconst = _on_all(lambda: [_logconst(t) for t in get_trees(comp, dirname)])
     logconst = comm.gather(logconst, root=0)
 
     def save():
@@ -330,11 +358,11 @@ def _discount_label(smoothing_kwargs):
     if isinstance(d, str):
         out = f"_{d}"
     elif np.ndim(d) == 0:
-        out = "" if float(d) == DEFAULT_KN_DISCOUNT else f"_D{float(d):g}"
+        out = "" if float(d) == DEFAULT_KN_DISCOUNT else f"_D{float(d)!r}"
     else:
         values = json.dumps(np.asarray(d, dtype=float).tolist())
         out = "_D" + hashlib.sha256(values.encode()).hexdigest()[:8]
-    return out + (f"_x{scale:g}" if scale != 1.0 else "")
+    return out + (f"_x{scale!r}" if scale != 1.0 else "")
 
 
 def default_label(prior_kwargs, tune_discounts=None):
@@ -496,9 +524,9 @@ def compute_logprior(
         return
 
     if use_tree:
-        fcn_list_proc = get_trees(comp, dirname)
+        fcn_list_proc = _on_all(lambda: get_trees(comp, dirname))
     else:
-        fcn_list_proc, _, _ = get_functions(comp, dirname)
+        fcn_list_proc = _on_all(lambda: get_functions(comp, dirname)[0])
 
     kp = FunctionPrior(n, basis_functions, equations=all_eq, **prior_kwargs)
     tuned = None

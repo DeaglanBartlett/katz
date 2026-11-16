@@ -119,8 +119,12 @@ variables, as physical constants are in the corpus, so e.g. ``pow(x0, a0)`` and
 
 .. code-block:: python
 
+	# the physics corpus also needs arccos; this is the basis of ESR's core_maths library
+	basis_functions = [["a", "x"],
+	                   ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh", "inv"],
+	                   ["+", "-", "*", "/", "pow"]]
 	kp = FunctionPrior(3, basis_functions, 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
-	                  input_delimiter=';')
+	                   input_delimiter=';')
 	kp.tune_discounts()
 	print(kp.logprior('sin(x0) + sin(x1)'))
 
@@ -135,9 +139,11 @@ values in the manifest:
 
 .. code-block:: python
 
-	from katz.esr_prior import compute_logprior
+	from katz.esr_prior import compute_logprior, get_logconst
 
-	compute_logprior(5, 3, basis_functions, 'ESR/esr/function_library/core_maths',
+	dirname = 'ESR/esr/function_library/core_maths'
+	get_logconst(5, dirname)  # constant terms of the codelength, needed first
+	compute_logprior(5, 3, basis_functions, dirname,
 	                 'data/PhysicsEquations.csv', 'data/NewPhysics.csv',
 	                 input_delimiter=';', tune_discounts='single')
 
