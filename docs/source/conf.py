@@ -11,6 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.abspath("."))
@@ -21,15 +22,37 @@ sys.path.insert(0, os.path.abspath("../../scripts/"))
 
 autodoc_mock_imports = ["mpi4py", "astropy", "esr"]
 
+# The tutorial's examples are doctests (make doctest). They run from the repository root,
+# where data/ is, and the part that scores an ESR library is skipped without ESR and mpi4py
+doctest_global_setup = f"""
+import os
+os.chdir({os.path.abspath("../..")!r})
+try:
+    import esr.generation.duplicate_checker
+    import mpi4py.MPI
+    have_esr = True
+except ImportError:
+    have_esr = False
+if have_esr:
+    # autodoc imports katz.esr_prior with esr and mpi4py mocked (autodoc_mock_imports), and
+    # the module keeps the mocks, so import it again with the real packages
+    import importlib
+    import katz.esr_prior
+    importlib.reload(katz.esr_prior)
+"""
+# The classes are documented in their __init__ docstrings, so show these with the class
+autoclass_content = "both"
+
 
 # -- Project information -----------------------------------------------------
 
 project = "Katz"
-copyright = "2023, Deaglan J. Bartlett"
-author = "Deaglan J. Bartlett"
+copyright = "2023-2026, Deaglan J. Bartlett and Harry Desmond"
+author = "Deaglan J. Bartlett and Harry Desmond"
 
-# The full version, including alpha/beta/rc tags
-release = "0.0.1"
+# The full version, including alpha/beta/rc tags, read from the package as in setup.py
+with open(os.path.abspath("../../katz/prior.py")) as f:
+    release = re.search(r'^__version__ = "(.+)"', f.read(), re.MULTILINE).group(1)
 
 
 # -- General configuration ---------------------------------------------------

@@ -16,10 +16,27 @@ back_off
    :show-inheritance:
 
 
+kneser_ney
+~~~~~~~~~~
+
+.. automodule:: katz.kneser_ney
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
 good_turing
 ~~~~~~~~~~~
 
 .. automodule:: katz.good_turing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tree_parser
+~~~~~~~~~~~
+
+.. automodule:: katz.tree_parser
    :members:
    :undoc-members:
    :show-inheritance:
@@ -42,16 +59,17 @@ process_equations
    :show-inheritance:
 
 
-scripts
--------
-
 esr_prior
 ~~~~~~~~~
 
-.. automodule:: scripts.esr_prior
+.. automodule:: katz.esr_prior
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+scripts
+-------
 
 
 fit_benchmark

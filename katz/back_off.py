@@ -13,7 +13,7 @@ class BackOff:
             :corpus (list of tuples): Tuples of words which form the corpus
 
         Returns:
-            Backoff: Katz back-off model based on this corpus
+            BackOff: Katz back-off model based on this corpus
         """
 
         all_len = [len(s) for s in corpus]
@@ -124,11 +124,11 @@ class BackOff:
 
     def get_pbo(self, wnew, old_phrase):
         """
-        Compute the probability for word wnew given the preceeding set of words old_phrase
+        Compute the probability for word wnew given the preceding set of words old_phrase
 
         Args:
             :wnew (str): The new word we wish to know the probability of obtaining
-            :old_phrase (tuple): The preceeding phrase
+            :old_phrase (tuple): The preceding phrase
 
         Returns:
             :pbo (float): The conditional probability P(wnew|old_phrase)
@@ -164,7 +164,7 @@ class BackOff:
             len(old_phrase) > 0
             and self.all_gt[len(new_phrase)][1].actual_count(old_phrase) > 0
         ):
-            # Never saw new phrase, but have an old phrase of length 1 which appears somehwere in corpus
+            # Never saw new phrase, but have an old phrase of length 1 which appears somewhere in corpus
             alpha, _ = self.get_alpha(old_phrase)  # alpha_{w_{i-1}}
             pbo = (
                 alpha
@@ -185,31 +185,34 @@ class NormalisedBackOff:
     or non-finite probabilities are set to zero and the rest divided by their sum over the
     vocabulary.
 
-    The Katz model of Bartlett et al. (2023) is not always normalised. When the seen
+    The Katz model of `Bartlett et al. (2023) <https://arxiv.org/abs/2304.06333>`__ is not always normalised. When the seen
     continuations of a context exhaust the support of the lower-order distribution, the mass
     reserved for unseen words is lost (the sum over words is then below one); and when the
     fitted Good-Turing slope is above -1, counts are inflated rather than discounted, which can
     give probabilities above one and negative back-off weights (in very small corpora); a
-    zero denominator in a back-off weight gives NaN. KatzPrior applies this wrapper by
-    default (normalise=True); BackOff itself is unchanged, so KatzPrior(..., root_context=False,
-    normalise=False) gives the model of version 0.2.1, apart from the single-leaf correction.
+    zero denominator in a back-off weight gives NaN. FunctionPrior applies this wrapper by
+    default (normalise=True); BackOff itself is unchanged, so FunctionPrior(..., smoothing='katz',
+    root_context=False, normalise=False) gives the model of version 0.2.1, apart from the
+    single-leaf correction.
 
     Args:
         :model (BackOff): The fitted Katz back-off model
         :vocab (list): Words over which each conditional distribution is normalised (default:
             the words of the training corpus)
         :follows (dict): Words that can only follow a given word, as {word: previous word}.
-            Such a word has zero probability in any context that does not end with that
-            previous word (default: none)
+            Such a word has zero probability in any context whose word at follows_position
+            is not that previous word (default: none)
+        :follows_position (int, default=-1): Position in the context of the previous word
 
     Returns:
         NormalisedBackOff: Model with the same get_pbo interface
     """
 
-    def __init__(self, model, vocab=None, follows=None):
+    def __init__(self, model, vocab=None, follows=None, follows_position=-1):
         self.model = model
         self.words = list(model.words if vocab is None else vocab)
         self.follows = dict(follows or {})
+        self.follows_position = follows_position
         self._dist = {}
 
     def __getattr__(self, name):
@@ -223,7 +226,9 @@ class NormalisedBackOff:
         if h not in self._dist:
             p = {}
             for w in self.words:
-                if w in self.follows and (len(h) == 0 or h[-1] != self.follows[w]):
+                if w in self.follows and (
+                    len(h) == 0 or h[self.follows_position] != self.follows[w]
+                ):
                     p[w] = 0.0
                     continue
                 v = float(self.model.get_pbo(w, h))
@@ -231,3 +236,49 @@ class NormalisedBackOff:
             z = sum(p.values())
             self._dist[h] = {w: v / z for w, v in p.items()} if z > 0 else {}
         return self._dist[h].get(wnew, 0.0)
+
+
+class FollowsRestriction:
+    """A normalised language model (e.g. KneserNey) restricted to the words that may follow
+    their context: a word in `follows` has zero probability unless the context word at
+    `position` is the word it must follow, and the probabilities of the other words are
+    divided by one minus the probability removed. The wrapped model's other attributes
+    (e.g. set_discounts) are available unchanged.
+
+    Args:
+        :model: Model with a prob(word, context) method whose conditionals sum to one
+        :follows (dict): {word: previous word}
+        :position (int, default=-1): Position in the context of the previous word
+
+    Returns:
+        FollowsRestriction: Model with the same prob and get_pbo interface
+    """
+
+    def __init__(self, model, follows, position=-1):
+        self.model = model
+        self.follows = dict(follows)
+        self.position = position
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "model"), name)
+
+    def _excluded(self, h):
+        return [
+            w
+            for w, prev in self.follows.items()
+            if len(h) == 0 or h[self.position] != prev
+        ]
+
+    def prob(self, wnew, old_phrase=()):
+        """Restricted P(wnew | old_phrase)"""
+        h = tuple(old_phrase)
+        excluded = self._excluded(h)
+        if wnew in excluded:
+            return 0.0
+        p = self.model.prob(wnew, h)
+        if excluded:
+            p /= 1.0 - sum(self.model.prob(w, h) for w in excluded)
+        return p
+
+    def get_pbo(self, wnew, old_phrase):
+        return self.prob(wnew, old_phrase)

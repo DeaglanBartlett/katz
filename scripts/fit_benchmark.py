@@ -6,7 +6,13 @@ import esr.generation.simplifier
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy
-from esr.fitting import combine_DL, match, plot, test_all, test_all_Fisher
+from esr.fitting import match, plot, test_all
+
+try:  # ESR renamed these modules
+    from esr.fitting import combine_dl as combine_DL
+    from esr.fitting import test_all_fisher as test_all_Fisher
+except ImportError:
+    from esr.fitting import combine_DL, test_all_Fisher
 from esr.fitting.sympy_symbols import *
 from mpi4py import MPI
 from sympy.abc import x
@@ -15,16 +21,24 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
+# Prior files read from the function library, {PRIOR_LABEL}_codelen_{PRIOR_N}_{comp}.txt and
+# {PRIOR_LABEL}_logprior_{PRIOR_N}_{comp}.txt, as written by katz.esr_prior.compute_logprior
+# with use_tree=False and the same label (e.g. 'kn' for the default model,
+# 'katz_noroot_unnorm' for the Katz model of version 0.2.1; see CHANGELOG.rst)
+PRIOR_LABEL = "katz"
+PRIOR_N = 2
+LM = f"{PRIOR_LABEL}_{PRIOR_N}"
+
 
 def get_sig(f, x_range, frac_sigx):
     """
     Determine the noise level to use. This is given as frac_sigx times
-    the standard deviation of the functions values evaluated on 10^5
+    the standard deviation of the function values evaluated on 10^5
     randomly generated points within the x_range
 
     Args:
         :f (str): The function which should be evaluated
-        :x_range (list[float, floar]): The [min, max] values of x to consider
+        :x_range (list[float, float]): The [min, max] values of x to consider
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
 
     Returns:
@@ -55,7 +69,7 @@ def make_data(name, f, x_range, nx, frac_sigx, samp_num, sig, make_fig=False):
     Args:
         :name (str): The name of the equation to be used
         :f (str): The function which should be evaluated
-        :x_range (list[float, floar]): The [min, max] values of x to consider
+        :x_range (list[float, float]): The [min, max] values of x to consider
         :nx (int): The number of data points to be used in the mock
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
         :samp_num (int): The mock number (which sets the seed of the random number generator)
@@ -118,7 +132,7 @@ class MockLikelihood:
         Args:
             :name (str): The name of the mock dataset
             :nx (int): Number of data points in mock
-            :fracsig_x (float): Fraction of std deviation used as errors
+            :fracsig_x (float): Fraction of the standard deviation used as errors
         """
 
         esr_dir = (
@@ -152,8 +166,8 @@ class MockLikelihood:
 
         Args:
             :xdata (float or np.array): input variable
-            :a (list): parameters to subsitute into equation considered
-            :eq_numpy (numpy function): function to use which gives H^2
+            :a (list): parameters to substitute into equation considered
+            :eq_numpy (numpy function): function to use which gives y
 
         Returns:
             :y (float or np.array): the predicted value of y
@@ -168,7 +182,7 @@ class MockLikelihood:
         """Negative log-likelihood for a given function
 
         Args:
-            :a (list): parameters to subsitute into equation considered
+            :a (list): parameters to substitute into equation considered
             :eq_numpy (numpy function): function to use which gives y
 
         Returns:
@@ -326,10 +340,10 @@ def apply_language_prior(likelihood, comp, tmax=5):
 
     # INCLUDE LOG(CONST) TERMS
 
-    likelihood.fnprior_prefix = "katz_codelen_2_"
-    likelihood.combineDL_prefix = "combine_DL_katz_2_"
-    likelihood.final_prefix = "final_katz_2_"
-    likelihood.fig_dir += "_katz_2"
+    likelihood.fnprior_prefix = f"{PRIOR_LABEL}_codelen_{PRIOR_N}_"
+    likelihood.combineDL_prefix = f"combine_DL_{LM}_"
+    likelihood.final_prefix = f"final_{LM}_"
+    likelihood.fig_dir += f"_{LM}"
 
     print_text("combine_DL language model (with const)")
     combine_DL.main(comp, likelihood)
@@ -341,10 +355,10 @@ def apply_language_prior(likelihood, comp, tmax=5):
 
     # NO LOG(CONST) TERMS
 
-    likelihood.fnprior_prefix = "katz_logprior_2_"
-    likelihood.combineDL_prefix = "combine_DL_noconst_katz_2_"
-    likelihood.final_prefix = "final_noconst_katz_2_"
-    likelihood.fig_dir += "_noconst_katz_2"
+    likelihood.fnprior_prefix = f"{PRIOR_LABEL}_logprior_{PRIOR_N}_"
+    likelihood.combineDL_prefix = f"combine_DL_noconst_{LM}_"
+    likelihood.final_prefix = f"final_noconst_{LM}_"
+    likelihood.fig_dir += f"_noconst_{LM}"
 
     print_text("combine_DL language model (no const)")
     combine_DL.main(comp, likelihood)
@@ -407,12 +421,12 @@ def process_data(dirname, final_prefix, all_comp):
     Args:
         :dirname (str): Directory name containing the optimisation results
         :final_prefix (str): Start of file names which contain result
-        :all_comp (list[int]): All complexity of equation to consider
+        :all_comp (list[int]): All complexities of equations to consider
 
     Returns:
         :fun (list[str]): The list of functions selected
         :res (np.ndarray): The terms used for model selection of the returned functions
-        :params (np.ndarray): The maximimum likelihood parameters of the returned functions
+        :params (np.ndarray): The maximum likelihood parameters of the returned functions
         :store_comp (np.ndarray): The complexities of the returned functions
 
     """
@@ -486,7 +500,7 @@ def remove_duplicates_and_sort(all_fun, all_loss, all_like, remove_by_like=True)
 
 def get_truth_location(fun, loss, all_true_eq):
     """
-    Find the highest ranked of the `true' equations
+    Find the highest ranked of the 'true' equations
 
     Args:
         :fun (list[str]): The list of functions
@@ -577,7 +591,7 @@ def _process_fit(
         :nx (int): The number of data points to be used in the mock
         :frac_sigx (float): The fraction of the standard deviation to use as sigma
         :samp_num (int): The mock number
-        :all_comp (list[int]): All complexity of equation to consider
+        :all_comp (list[int]): All complexities of equations to consider
         :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
 
     Returns:
@@ -594,12 +608,12 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
     Process the results of all fits to give a function ranking according
     to different model selection methods. If all_true_eq is not None, then
     this will also find the location of the true equation in the rankings.
-    The results are outputted to a file called selection_summary.csv in
+    The results are written to a file called selection_summary.csv in
     the directory given by dirname.
 
     Args:
         :dirname (str): Directory name containing the optimisation results
-        :all_comp (list[int]): All complexity of equation to consider
+        :all_comp (list[int]): All complexities of equations to consider
         :nx (int): The number of data points to be used in the mock
         :all_true_eq (list[str] or None): List of variants of the true equation to find
         :remove_by_like (bool, default=True): Whether to remove duplicates if they have the same likelihood
@@ -649,7 +663,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
         print("\nMethod 3", dirname, m3_fun[: min(len(m3_fun), 4)])
 
     # METHOD 4: MDL with language model prior
-    fun, res, params, store_comp = process_data(dirname, "final_katz_2_", all_comp)
+    fun, res, params, store_comp = process_data(dirname, f"final_{LM}_", all_comp)
     m4_ftrue, m4_ltrue = get_truth_location(fun, res[:, 0], all_true_eq)
     fun, loss, _ = remove_duplicates_and_sort(
         fun, res[:, 0], res[:, 2], remove_by_like=remove_by_like
@@ -663,7 +677,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
     nup = np.exp(1 - np.log(3))
 
     # METHOD 5: MDL with FBF and Language Model Prior
-    fun, res, params, store_comp = process_data(dirname, "final_katz_2_", all_comp)
+    fun, res, params, store_comp = process_data(dirname, f"final_{LM}_", all_comp)
     m = params != 0
     p = np.sum(m, axis=1)
     loss = (
@@ -685,7 +699,7 @@ def process_fit(dirname, all_comp, nx, all_true_eq=None, remove_by_like=True):
 
     # METHOD 6: Evidence with FBF and Language Model Priors
     fun, res, params, store_comp = process_data(
-        dirname, "final_noconst_katz_2_", all_comp
+        dirname, f"final_noconst_{LM}_", all_comp
     )
     m = params != 0
     p = np.sum(m, axis=1)

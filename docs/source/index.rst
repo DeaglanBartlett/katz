@@ -14,7 +14,9 @@ Welcome to Katz's documentation!
 
    Home <self>
    tutorial
+   theory
    api
+   changelog
 
 
 

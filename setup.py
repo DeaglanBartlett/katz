@@ -10,21 +10,22 @@ setup(
     version=version,
     description="A Python package to produce priors on functions",
     url="https://github.com/DeaglanBartlett/katz",
-    author="Deaglan Bartlett",
+    author="Deaglan Bartlett, Harry Desmond",
     author_email="deaglan.bartlett@iap.fr",
     license="MIT licence",
     packages=["katz"],
     install_requires=[
-        "esr",
         "numpy",
         "scipy",
         "sympy>=1.14",  # the corpus parse, and so the prior, depends on it
         "matplotlib",
         "pandas",
-        "sphinx>=5.0",
-        "sphinx-rtd-theme",
-        "myst-parser",
     ],
+    extras_require={
+        # scoring ESR function libraries (katz.esr_prior) and the ESR tests
+        "esr": ["esr", "mpi4py"],
+        "docs": ["sphinx>=5.0", "sphinx-rtd-theme", "myst-parser"],
+    },
     classifiers=[
         "Development Status :: 1 - Planning",
         "Intended Audience :: Science/Research",
