@@ -1190,6 +1190,57 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(kp.logprior("sin(x0) * x1"), before)
         res = kp.tune_discounts(k=2)  # two equations per fold
         self.assertTrue(np.all(np.isfinite(res["cv_nll"])))
+        for kw in [
+            {"method": "unknown"},
+            {"method": "single", "grid": [[0.5, 1.0]]},  # 'single' takes a 1-d grid
+            {"method": "count", "grid": [0.5, 1.0]},  # 'count' takes (D1, D2+) pairs
+        ]:
+            with (
+                self.subTest(**{k: str(v) for k, v in kw.items()}),
+                self.assertRaises(ValueError),
+            ):
+                kp.tune_discounts(**kw)
+        with self.assertRaises(ValueError):
+            KatzPrior(
+                2, self.basis_functions, equations=eqs, smoothing="katz"
+            ).tune_discounts()
+
+    def test_tune_discounts_default_grids(self):
+        eqs = ["sin(x0) + x1", "x0*x1", "exp(x0) - x1", "sqrt(x0)/x1"]
+        kp = KatzPrior(2, self.basis_functions, equations=eqs)
+        res = kp.tune_discounts(method="scale", k=2)
+        self.assertEqual(res["grid"].shape, (39,))
+        for side in ("left", "right"):
+            self.assertEqual(res[side]["discounts"], "mkn")
+            self.assertIn(res[side]["discount_scale"], res["grid"])
+        res = kp.tune_discounts(method="count", k=2)
+        self.assertEqual(res["grid"].shape, (400, 2))
+        for side in ("left", "right"):
+            d = np.array(res[side]["discounts"])
+            self.assertEqual(d.shape, (kp.n + 1, 3))  # (D1, D2, D3+) at every order
+            self.assertTrue(np.all(d[:, 1] == d[:, 2]))  # D3+ = D2
+            self.assertTrue(np.all(d == d[0]))  # the same at every order
+        self.assertEqual(res["cv_nll"].shape, (2, 400))
+
+    def test_tune_discounts_restores_models_on_error(self):
+        # an interruption during cross-validation leaves the full-corpus models in place
+        from unittest import mock
+
+        eqs = ["sin(x0) + x1", "x0*x1", "exp(x0) - x1", "sqrt(x0)/x1"]
+        kp = KatzPrior(2, self.basis_functions, equations=eqs)
+        total = kp.backoff_left.total[1][()]
+        before = kp.logprior("sin(x0) * x1")
+        with (
+            mock.patch.object(KneserNey, "prob", side_effect=KeyboardInterrupt),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            kp.tune_discounts(k=2)
+        self.assertEqual(kp.backoff_left.total[1][()], total)  # not a training fold
+        self.assertEqual(kp.logprior("sin(x0) * x1"), before)
+
+    def test_kn_empty_vocabulary(self):
+        with self.assertRaises(ValueError):
+            KneserNey([], order=2, vocab=[])
 
     def test_cache_size(self):
         for bad in (-1, 2.8, True, "10"):
@@ -1361,6 +1412,110 @@ class TestPriorCache(unittest.TestCase):
             self.assertTrue(np.isnan(vals[0]) and np.isfinite(vals[1]))
             self.assertEqual(manifest["n_failed"], 1)
 
+    def test_work_is_split_between_ranks(self):
+        # every function is given to exactly one rank, in order, including when there
+        # are more ranks than functions
+        from unittest import mock
+
+        for n, size in [(10, 4), (5, 10), (7, 1), (3, 3), (0, 2)]:
+            idx = []
+            for r in range(size):
+                with (
+                    mock.patch.object(esr_prior, "size", size),
+                    mock.patch.object(esr_prior, "rank", r),
+                ):
+                    start, end = esr_prior.get_indices(n)
+                idx += list(range(start, end))
+            with self.subTest(n=n, size=size):
+                self.assertEqual(idx, list(range(n)))
+
+    def test_rank0_errors_reach_every_rank(self):
+        from unittest import mock
+
+        self.assertEqual(esr_prior._on_root(lambda: 42), 42)
+
+        def fail():
+            raise ValueError("boom")
+
+        with self.assertRaisesRegex(ValueError, "boom"):
+            esr_prior._on_root(fail)  # rank 0 raises the original exception
+        # another rank receives the message and raises a RuntimeError
+        comm = mock.Mock()
+        comm.bcast.return_value = (None, "ValueError: boom")
+        with (
+            mock.patch.object(esr_prior, "rank", 1),
+            mock.patch.object(esr_prior, "comm", comm),
+            self.assertRaisesRegex(RuntimeError, "rank 0 failed: ValueError: boom"),
+        ):
+            esr_prior._on_root(fail)
+
+    def test_default_label_options(self):
+        self.assertEqual(default_label({}), "kn")
+        self.assertEqual(
+            default_label({"code_constants": True, "right_backoff": "parent"}),
+            "kn_const_parent",
+        )
+        self.assertEqual(
+            default_label(
+                {"smoothing": "katz", "root_context": False, "normalise": False}
+            ),
+            "katz_noroot_unnorm",
+        )
+        # normalise does not apply to Kneser-Ney, so it does not enter the label
+        self.assertEqual(default_label({"normalise": False}), "kn")
+
+    def test_unreadable_logconst_record_is_recomputed(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as td:
+            self._library(td, "x0", ["x0"])
+            sidecar = os.path.join(td, "compl_1", "logconst_1.json")
+            with open(sidecar, "w") as f:
+                f.write("{not json")
+            esr_prior.get_logconst(1, td)
+            with open(sidecar) as f:
+                meta = json.load(f)
+            self.assertEqual(meta["n"], 1)
+
+    def test_missing_manifest_forces_recompute(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._library(td, "x0", ["x0"])
+            v1, _ = self._run(td)
+            manifest = os.path.join(td, "compl_1", "kn_prior_2_1.json")
+            os.remove(manifest)
+            v2, _ = self._run(td)
+            self.assertTrue(os.path.isfile(manifest))
+            self.assertEqual(v2, v1)
+
+    def test_unscorable_tree_is_nan(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as td:
+            self._library(td, "x0", ["foo"])  # not a label of the basis
+            esr_prior.compute_logprior(
+                1,
+                2,
+                self.basis,
+                td,
+                None,
+                None,
+                use_tree=True,
+                prior_kwargs={"equations": self.corpus},
+            )
+            d = os.path.join(td, "compl_1")
+            self.assertTrue(
+                np.isnan(np.loadtxt(os.path.join(d, "kn_logprior_2_1_tree.txt")))
+            )
+            with open(os.path.join(d, "kn_prior_2_1_tree.json")) as f:
+                self.assertEqual(json.load(f)["n_failed"], 1)
+
+    def test_logconst_of_wrong_length(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._library(td, "x0", ["x0"])
+            np.savetxt(os.path.join(td, "compl_1", "logconst_1.txt"), [0.0, 0.0])
+            with self.assertRaisesRegex(ValueError, "rerun get_logconst"):
+                self._run(td)
+
 
 class TestTreeParser(unittest.TestCase):
     """The built-in (sympy-only) tree parser"""
@@ -1402,6 +1557,180 @@ class TestTreeParser(unittest.TestCase):
                 pe.generator = tree_parser
             new = [coder.process_all_equations(4, [e], 11) for e in eqs]
             self.assertEqual(new, ref)
+
+    # The tests below check branches of the parser that the corpora above do not reach.
+    # Each runs on the built-in parser and, when ESR is installed, on ESR's parser too,
+    # so they also check that the copy behaves like its source.
+
+    @staticmethod
+    def _parsers():
+        return [tree_parser] + ([esr.generation.generator] if HAVE_ESR else [])
+
+    def test_to_list_branches(self):
+        import sympy
+
+        x, y = sympy.symbols("x y")
+        binary = ["+", "-", "*", "/", "pow"]
+        plain = [["a", "x"], [], binary]  # no unary operators
+        unary = [["a", "x"], ["sqrt", "square", "cube", "inv"], binary]
+        sqrt_abs = [["a", "x"], ["sqrt_abs"], binary]
+        cases = [
+            # (expression, basis to build the tree with, basis to list it with, labels)
+            (sympy.sqrt(x), plain, sqrt_abs, ["sqrt_abs", "x"]),
+            (sympy.sqrt(x), plain, unary, ["sqrt", "x"]),
+            (x**2, plain, unary, ["square", "x"]),
+            (x**2, unary, plain, ["pow", "x", "2"]),
+            (x**3, plain, unary, ["cube", "x"]),
+            (x**3, unary, plain, ["pow", "x", "3"]),
+            (1 / x, plain, unary, ["Inv", "x"]),
+            # a product with a power and -1, as a Mul and as a Div
+            (sympy.Mul(x**2, -1, evaluate=False), plain, plain, ["Mul", "-1"]),
+            (
+                sympy.Mul(x**2, sympy.Pow(-1, -1, evaluate=False), evaluate=False),
+                plain,
+                plain,
+                ["Mul", "-1"],
+            ),
+            # multiplying by one is dropped, whichever side the one is on
+            (sympy.Mul(x, 1, evaluate=False), plain, plain, ["x"]),
+            (sympy.Mul(1, x, evaluate=False), plain, plain, ["x"]),
+            # x + y*(-1) is a subtraction, whichever factor is the -1
+            (
+                sympy.Add(x, sympy.Mul(y, -1, evaluate=False), evaluate=False),
+                plain,
+                plain,
+                ["Sub", "x", "y"],
+            ),
+            (
+                sympy.Add(x, sympy.Mul(-1, y, evaluate=False), evaluate=False),
+                plain,
+                plain,
+                ["Sub", "x", "y"],
+            ),
+        ]
+        for m in self._parsers():
+            for expr, build, show, labels in cases:
+                with self.subTest(parser=m.__name__, expr=str(expr), show=show[1]):
+                    node = m.DecoratedNode(expr, build)
+                    self.assertEqual(node.to_list(show), labels)
+                    self.assertEqual(node.count_nodes(show), len(labels))
+            self.assertEqual(m.DecoratedNode(x**3, unary).op, "Cube")
+
+    def test_lineage_and_siblings(self):
+        import sympy
+
+        x = sympy.Symbol("x")
+        for m in self._parsers():
+            with self.subTest(parser=m.__name__):
+                node = m.DecoratedNode(
+                    sympy.Mul(x, sympy.sin(x), evaluate=False), BASIS
+                )
+                self.assertEqual(
+                    node.get_lineage(),
+                    [
+                        (None, "Mul"),
+                        (None, "Mul", "Symbol"),
+                        (None, "Mul", "sin"),
+                        (None, "Mul", "sin", "Symbol"),
+                    ],
+                )
+                self.assertEqual(
+                    node.get_siblings(),
+                    [
+                        ("Mul", "None"),
+                        ("Symbol", "sin"),
+                        ("Symbol", "sin"),
+                        ("Symbol", "None"),
+                    ],
+                )
+
+    def test_nodes_and_shapes(self):
+        basis = [["a", "x", "x0"], ["sin"], ["*", "+"]]
+        for m in self._parsers():
+            with self.subTest(parser=m.__name__):
+                # Node bookkeeping
+                n = m.Node(2)
+                n.parent, n.left, n.right = 0, 1, 2
+                c = n.copy()
+                self.assertIsNot(c, n)
+                self.assertEqual((c.type, c.parent, c.left, c.right), (2, 0, 1, 2))
+                self.assertFalse(m.Node(0).is_used())  # a leaf without a parent
+                self.assertFalse(m.Node(1).is_used())  # an operator without a child
+                self.assertFalse(m.Node(2).is_used())
+                self.assertTrue(n.is_used())
+                leaf = m.Node(0)
+                leaf.parent = 0
+                self.assertTrue(leaf.is_used())
+                for op, val in [("3", 3), ("-3", -3), ("x0", "x0")]:
+                    leaf.assign_op(op)
+                    self.assertEqual((leaf.op, leaf.val), (op, val))
+
+                # labels -> shape: parameters and numbers are leaves, other labels fail
+                self.assertEqual(
+                    m.labels_to_shape(["+", "a3", "2.5"], basis), [2, 0, 0]
+                )
+                with self.assertRaises(ValueError):
+                    m.labels_to_shape(["+", "x0", "foo"], basis)
+
+                # shapes that cannot form a tree, and ones that can
+                self.assertFalse(m.check_tree([1, 0, 0])[0])  # a leaf with no slot
+                self.assertFalse(m.check_tree([1, 1])[0])  # an operator without a child
+                self.assertFalse(m.check_tree([2, 0])[0])  # a missing right child
+                self.assertTrue(m.check_tree([2, 0, 0])[0])
+                self.assertEqual(m.check_tree([0])[:2], (True, None))
+
+                # a tree built from labels, with a numerical constant as a leaf
+                labels = ["*", "x0", "2.5"]
+                ok, _, tree = m.check_tree(m.labels_to_shape(labels, basis))
+                self.assertTrue(ok)
+                for i, lab in enumerate(labels):
+                    tree[i].assign_op(lab)
+                node = m.DecoratedNode(None, basis)
+                node.from_node_list(0, tree, basis)
+                self.assertTrue(node.children[1].constant)
+                self.assertEqual(node.children[1].val, "2.5")
+                self.assertEqual(node.to_list(basis), labels)
+
+    def test_string_to_node_options(self):
+        from unittest import mock
+
+        import sympy
+
+        basis = [["a", "x", "x0", "x1"], ["sin"], ["*", "+"]]
+        expected = sympy.Symbol("x0") * sympy.Symbol("x1")
+        for m in self._parsers():
+            with self.subTest(parser=m.__name__):
+                self.assertEqual(m.string_to_expr("x0*x1"), expected)  # no locs
+                expr, _, c = m.string_to_node(
+                    "x0*x1", basis, evalf=True, allow_eval=True, check_ops=True
+                )
+                self.assertEqual(expr, expected)
+                self.assertEqual(c, 3)
+
+                # each of the four parses may fail; the others are used
+                parse = m.string_to_expr
+                for fails in [
+                    lambda kern, evaluate: kern or not evaluate,  # all but the first
+                    lambda kern, evaluate: evaluate,  # the first and third
+                ]:
+
+                    def flaky(
+                        s,
+                        kern=False,
+                        evaluate=False,
+                        locs=None,
+                        fails=fails,
+                        parse=parse,
+                    ):
+                        if fails(kern, evaluate):
+                            raise ValueError("parse failed")
+                        return parse(s, kern=kern, evaluate=evaluate, locs=locs)
+
+                    with mock.patch.object(m, "string_to_expr", flaky):
+                        expr, _, c = m.string_to_node(
+                            "x0*x1", basis, allow_eval=True, check_ops=True
+                        )
+                    self.assertEqual((expr, c), (expected, 3))
 
 
 if __name__ == "__main__":
