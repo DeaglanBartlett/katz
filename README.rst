@@ -201,15 +201,12 @@ Contributors
 
 Below is a list of contributors to this repository. 
 
-`Deaglan Bartlett <https://github.com/DeaglanBartlett>`_ (CNRS & Sorbonne Université, Institut d’Astrophysique de Paris)
+`Deaglan Bartlett <https://github.com/DeaglanBartlett>`_
+`Harry Desmond <https://github.com/harrydesmond>`_
 
 Documentation
 =============
 
 The documentation for this project can be found
 `at this link <https://katz.readthedocs.io/>`_.
-
-Acknowledgements
-================
-DJB is supported by the Simons Collaboration on `Learning the Universe <https://www.learning-the-universe.org/>`_.
 
