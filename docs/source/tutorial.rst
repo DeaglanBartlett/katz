@@ -117,11 +117,12 @@ Passing ``None`` as the input file reads the standardised corpus written above:
    tanh(log(x0))     -14.036       -inf    -13.697    -14.168
    x0 + 1/x1         -10.802       -inf    -11.288    -10.618
 
-* ``smoothing="katz"`` is the Katz back-off model of the original paper (normalised and
-  with the root context by default). It gives zero probability to any function containing a
-  symbol never seen in that role in the corpus: here ``tanh`` and ``log``, which do not occur
-  in the physics corpus, and ``inv`` as a second child. Kneser-Ney gives every function a
-  non-zero probability.
+* ``smoothing="katz"`` is the Katz back-off model of the original paper, here normalised
+  and with the root context (the defaults since version 0.3.0; the original settings are
+  given below). It gives zero probability to any function containing a symbol never seen in
+  that role in the corpus: here ``tanh`` and ``log``, which occur in the corpus only as the
+  second factor of a product, so never as the root or the first child of an operator, and
+  ``inv`` as a second child. Kneser-Ney gives every function a non-zero probability.
 * ``root_context=False`` predicts the root from the distribution of all first children, as
   before version 0.3.0. This makes single leaves and short functions more probable, since
   no corpus equation is a bare leaf.

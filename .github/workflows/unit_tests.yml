@@ -40,6 +40,10 @@ jobs:
           pytest --cov-report=xml --cov=katz tests/test_katz.py
           cat coverage.xml
         shell: bash
+      - name: Run the tutorial's examples (doctest)
+        run: |
+          pip install -r docs/requirements.txt
+          python -m sphinx -b doctest docs/source docs/build/doctest
 
       - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v3

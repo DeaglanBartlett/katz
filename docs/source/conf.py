@@ -33,6 +33,12 @@ try:
     have_esr = True
 except ImportError:
     have_esr = False
+if have_esr:
+    # autodoc imports katz.esr_prior with esr and mpi4py mocked (autodoc_mock_imports), and
+    # the module keeps the mocks, so import it again with the real packages
+    import importlib
+    import katz.esr_prior
+    importlib.reload(katz.esr_prior)
 """
 # The classes are documented in their __init__ docstrings, so show these with the class
 autoclass_content = "both"
