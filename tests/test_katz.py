@@ -479,6 +479,16 @@ class TestESRPrior(unittest.TestCase):
                 prior_kwargs={"smoothing": "katz"},
                 tune_discounts="single",
             )
+        with self.assertRaisesRegex(ValueError, "Unknown tuning method"):
+            compute_logprior(
+                self.comp,
+                self.n,
+                self.basis_functions,
+                self.dirname,
+                self.in_eqfile,
+                self.out_eqfile,
+                tune_discounts="bogus",
+            )
         for f in os.listdir(base):
             if f.startswith("clash_"):
                 os.remove(base + f)
@@ -1026,6 +1036,14 @@ class TestEdgeCases(unittest.TestCase):
     """Edge cases found by an independent audit of the code"""
 
     basis_functions = BASIS
+
+    def test_uncodable_corpus_equation(self):
+        """A corpus equation with an operator outside the basis is named in the error"""
+        basis = [["a", "x"], ["sin"], ["+", "*"]]
+        with self.assertRaisesRegex(
+            ValueError, "Cannot code the corpus equation 'arccos"
+        ):
+            KatzPrior(2, basis, equations=["x0*sin(x1)", "arccos(x0)"])
 
     def test_root_taken_from_tree(self):
         # the root event is the root of the tree even when the first lineage tuple is

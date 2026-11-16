@@ -36,6 +36,14 @@ Version 0.4.0
   different discounts are written to different files.
 * ``is_float`` in the parser evaluates only numbers and arithmetic instead of calling
   ``eval`` on the string.
+* Documentation: a Theory page describing both models, and a worked tutorial whose outputs
+  are checked with ``make -C docs doctest``.
+* Bug fixes in ``katz.esr_prior``: an error on one MPI rank while reading a function library
+  or computing the constant penalties is now raised on every rank (the other ranks used to
+  wait indefinitely); ``get_logconst`` handles integers beyond the 64-bit range, which raised
+  an error or gave a NaN penalty, and a saved NaN penalty is recomputed. A corpus equation
+  that the basis cannot code raises a ``ValueError`` naming it. ``scripts/fit_benchmark.py``
+  imports ESR's renamed modules (``combine_dl``, ``test_all_fisher``).
 
 Version 0.3.0
 -------------
