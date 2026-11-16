@@ -15,6 +15,7 @@ Welcome to Katz's documentation!
    Home <self>
    tutorial
    api
+   changelog
 
 
 

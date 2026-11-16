@@ -54,7 +54,7 @@ def main():
                 input_delimiter=input_delimiter,
                 use_tree=use_tree,
                 # the Katz model of version 0.2.1; the priors of Bartlett et al. (2023)
-                # need version 0.1.0 (see README)
+                # need version 0.1.0 (see CHANGELOG.rst)
                 prior_kwargs={"smoothing": "katz", "root_context": False, "normalise": False},
             )
 

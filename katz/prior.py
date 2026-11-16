@@ -44,7 +44,7 @@ class KatzPrior:
         including those of Bartlett, Desmond & Ferreira (2023) and Sousa et al. (2024), used
         version 0.1.0 or earlier, whose right-child model omitted the parent from the context
         at n = 2 (in general, the most distant symbol of the context); no setting of this
-        version reproduces them (see README).
+        version reproduces them (see CHANGELOG.rst).
 
         Args:
             :n (int): The length of the n-tuples to consider

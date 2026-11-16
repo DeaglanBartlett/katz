@@ -371,7 +371,7 @@ def compute_logprior(
         :overwrite (bool): Whether to overwrite files if they already exist
         :input_delimiter (str): The delimiter used in the input csv file
         :use_tree (bool, default=False): Whether to compute the prior using the tree representation from file (True) or using the string representation (False) and convert this to a tree automatically.
-        :prior_kwargs (dict, default=None): Extra keyword arguments passed to KatzPrior (e.g. {'smoothing': 'katz', 'root_context': False, 'normalise': False} for the Katz model of version 0.2.1; the priors of Bartlett et al. 2023 need version 0.1.0, see README; the default is Kneser-Ney)
+        :prior_kwargs (dict, default=None): Extra keyword arguments passed to KatzPrior (e.g. {'smoothing': 'katz', 'root_context': False, 'normalise': False} for the Katz model of version 0.2.1; the priors of Bartlett et al. 2023 need version 0.1.0, see CHANGELOG.rst; the default is Kneser-Ney)
         :label (str, default=None): Prefix of the output files, so that priors from different models are not overwritten. If None, default_label(prior_kwargs) is used: the smoothing method ('kn' or 'katz') followed by '_noroot', '_unnorm' (Katz only), '_const' and '_parent' for non-default options.
 
     Returns:
