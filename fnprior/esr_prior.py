@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from mpi4py import MPI
 
-from katz.prior import FunctionPrior
+from fnprior.prior import FunctionPrior
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -314,7 +314,7 @@ def _prior_config(n, basis_functions, prior_kwargs, tune_discounts=None):
     """Complete (JSON-serialisable) configuration of the FunctionPrior built by compute_logprior"""
     import inspect
 
-    from katz.prior import DEFAULT_KN_DISCOUNT
+    from fnprior.prior import DEFAULT_KN_DISCOUNT
 
     defaults = {
         k: v.default
@@ -351,7 +351,7 @@ def _discount_label(smoothing_kwargs):
     import hashlib
     import json
 
-    from katz.prior import DEFAULT_KN_DISCOUNT
+    from fnprior.prior import DEFAULT_KN_DISCOUNT
 
     d = (smoothing_kwargs or {}).get("discounts", DEFAULT_KN_DISCOUNT)
     scale = float((smoothing_kwargs or {}).get("discount_scale", 1.0))
@@ -412,8 +412,8 @@ def compute_logprior(
     the sum(log(c_i)) terms for constants c_i which appear in the equations. A manifest
     {label}_prior_{n}_{comp}.json records the prior configuration; hashes of the corpus, of
     the candidate functions (all_equations_{comp}.txt or trees_{comp}.txt), of the
-    constant-penalty file logconst_{comp}.txt, of the scoring source code (the katz modules,
-    including the equation parser) and of both outputs; the katz and sympy versions; and the
+    constant-penalty file logconst_{comp}.txt, of the scoring source code (the fnprior modules,
+    including the equation parser) and of both outputs; the fnprior and sympy versions; and the
     number of functions that could not be scored (NaN in the output; a function with zero
     prior probability has -log(prior) = inf).
     Existing output is reused only if all of these match. Outputs are written atomically and
@@ -440,8 +440,8 @@ def compute_logprior(
     import hashlib
     import json
 
-    from katz.prior import __version__
-    from katz.process_equations import standardise_file
+    from fnprior.prior import __version__
+    from fnprior.process_equations import standardise_file
 
     prior_kwargs = {} if prior_kwargs is None else dict(prior_kwargs)
     if tune_discounts is not None:
@@ -485,7 +485,7 @@ def compute_logprior(
             "n_candidates": _n_lines(candname),
             "logconst_sha256": _sha256(logconst_name),
             "code_sha256": _code_sha256(),
-            "katz_version": __version__,
+            "fnprior_version": __version__,
             "sympy_version": sympy.__version__,
         }
         reuse = False

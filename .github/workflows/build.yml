@@ -30,5 +30,12 @@ jobs:
       - name: Lint with Ruff
         run: |
           pip install ruff
-          ruff check katz
+          ruff check fnprior katz
         continue-on-error: false
+      - name: Build the distributions and check them for PyPI
+        run: |
+          pip install build twine
+          python -m build
+          twine check --strict dist/*
+          # the corpora and the katz alias must be in the wheel
+          python -m zipfile -l dist/*.whl | grep -E "fnprior/data/PhysicsEquations.csv|fnprior/data/FeynmanEquations.csv|katz/__init__.py"

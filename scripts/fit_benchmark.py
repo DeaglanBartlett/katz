@@ -22,7 +22,7 @@ rank = comm.Get_rank()
 size = comm.Get_size()
 
 # Prior files read from the function library, {PRIOR_LABEL}_codelen_{PRIOR_N}_{comp}.txt and
-# {PRIOR_LABEL}_logprior_{PRIOR_N}_{comp}.txt, as written by katz.esr_prior.compute_logprior
+# {PRIOR_LABEL}_logprior_{PRIOR_N}_{comp}.txt, as written by fnprior.esr_prior.compute_logprior
 # with use_tree=False and the same label (e.g. 'kn' for the default model,
 # 'katz_noroot_unnorm' for the Katz model of version 0.2.1; see CHANGELOG.rst)
 PRIOR_LABEL = "katz"

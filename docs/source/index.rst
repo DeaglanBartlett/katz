@@ -1,10 +1,10 @@
-.. Katz documentation master file, created by
+.. fnprior documentation master file, created by
    sphinx-quickstart on Fri Apr  7 10:51:45 2023.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Katz's documentation!
-================================
+Welcome to the fnprior documentation!
+=====================================
 
 .. include:: README.rst
 

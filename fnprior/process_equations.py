@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import sympy
 
-from katz import tree_parser as generator
+from fnprior import tree_parser as generator
 
 
 def split_by_punctuation(s):
@@ -178,7 +178,7 @@ class SymbolCoder:
 
         Args:
             :n (int): The length of the n-tuples to produce
-            :nodes (katz.tree_parser.DecoratedNode): Node object corresponding to the tree
+            :nodes (fnprior.tree_parser.DecoratedNode): Node object corresponding to the tree
 
         Returns:
             :ntuples (list): List of n-tuples which describe tree structure of function

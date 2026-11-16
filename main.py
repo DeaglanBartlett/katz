@@ -1,8 +1,9 @@
 import string
 
-from katz.back_off import BackOff
-from katz.good_turing import GoodTuring
-from katz.prior import FunctionPrior
+from fnprior import data_path
+from fnprior.back_off import BackOff
+from fnprior.good_turing import GoodTuring
+from fnprior.prior import FunctionPrior
 
 with open("data/romeoandjuliet.txt", "r") as f:
     data = f.readlines()[75:4494]
@@ -67,11 +68,11 @@ elif example == 2:
         ["+", "-", "*", "/", "pow"],
     ]
 
-    #    kp = FunctionPrior(2, basis_functions, 'data/FeynmanEquations.csv', 'data/NewFeynman.csv', input_delimiter=',')
+    #    kp = FunctionPrior(2, basis_functions, data_path('FeynmanEquations.csv'), 'data/NewFeynman.csv', input_delimiter=',')
     kp = FunctionPrior(
         2,
         basis_functions,
-        "data/PhysicsEquations.csv",
+        data_path("PhysicsEquations.csv"),
         "data/NewPhysics.csv",
         input_delimiter=";",
     )

@@ -3,10 +3,10 @@ expression trees used by the function prior, using sympy only.
 
 The classes and functions below are copied from esr/generation/generator.py of the ESR
 package (https://github.com/DeaglanBartlett/ESR, MIT licence; Bartlett, Desmond & Ferreira
-2022), without the parts that need MPI or the rest of ESR, so that katz gives the same trees
+2022), without the parts that need MPI or the rest of ESR, so that fnprior gives the same trees
 as ESR without requiring it. There are two changes: string_to_expr uses an empty namespace
 when no `locs` are given, and is_float evaluates only numbers and arithmetic instead of
-calling eval on the label. tests/test_katz.py checks that the n-tuples agree with those
+calling eval on the label. tests/test_fnprior.py checks that the n-tuples agree with those
 obtained with ESR when ESR is installed.
 """
 

@@ -3,12 +3,13 @@
 Tutorial
 ========
 
-This page builds a prior from the corpus of physics equations in ``data/``, looks at the
-probabilities it gives to a few functions and where they come from, compares the main
+This page builds a prior from the corpus of physics equations included in fnprior, looks at
+the probabilities it gives to a few functions and where they come from, compares the main
 options, and then scores a function library of
 `Exhaustive Symbolic Regression <https://github.com/DeaglanBartlett/ESR>`_ (ESR). The code
-runs from the root of the repository. The outputs shown are checked by running the page as a
-doctest (``make -C docs doctest``); the last section needs ESR and ``mpi4py``.
+writes a standardised copy of the corpus to the current directory. The outputs shown are
+checked by running the page as a doctest (``make -C docs doctest``); the last section needs
+ESR and ``mpi4py``.
 
 
 Building a prior
@@ -16,17 +17,19 @@ Building a prior
 
 The basis lists the operators that functions may contain: nullary (leaves), unary and
 binary. It must contain every operator of the corpus, which for the physics corpus includes
-``arccos``. This is the basis of ESR's ``core_maths`` library:
+``arccos``. This is the basis of ESR's ``core_maths`` library. ``data_path`` gives the path
+of a corpus included in fnprior:
 
 .. doctest::
 
    >>> import numpy as np
-   >>> from katz.prior import FunctionPrior
+   >>> from fnprior import data_path
+   >>> from fnprior.prior import FunctionPrior
    >>> basis_functions = [["a", "x"],
    ...                    ["sqrt", "exp", "log", "sin", "cos", "arcsin", "arccos", "tanh", "inv"],
    ...                    ["+", "-", "*", "/", "pow"]]
-   >>> kp = FunctionPrior(2, basis_functions, "data/PhysicsEquations.csv",
-   ...                    "data/NewPhysics.csv", input_delimiter=";")
+   >>> kp = FunctionPrior(2, basis_functions, data_path("PhysicsEquations.csv"),
+   ...                    "NewPhysics.csv", input_delimiter=";")
    >>> len(kp.all_eq)
    161
 
@@ -99,11 +102,11 @@ Passing ``None`` as the input file reads the standardised corpus written above:
 
    >>> models = {
    ...     "default": kp,
-   ...     "katz": FunctionPrior(2, basis_functions, None, "data/NewPhysics.csv",
+   ...     "katz": FunctionPrior(2, basis_functions, None, "NewPhysics.csv",
    ...                           smoothing="katz"),
-   ...     "no root": FunctionPrior(2, basis_functions, None, "data/NewPhysics.csv",
+   ...     "no root": FunctionPrior(2, basis_functions, None, "NewPhysics.csv",
    ...                              root_context=False),
-   ...     "constants": FunctionPrior(2, basis_functions, None, "data/NewPhysics.csv",
+   ...     "constants": FunctionPrior(2, basis_functions, None, "NewPhysics.csv",
    ...                                code_constants=True),
    ... }
    >>> print(" " * 14 + "".join(f"{m:>11s}" for m in models))
@@ -166,14 +169,15 @@ progress messages are suppressed):
 
    >>> import contextlib, io, json, os, tempfile
    >>> import esr.generation.duplicate_checker
-   >>> from katz.esr_prior import compute_logprior, get_logconst
+   >>> from fnprior.esr_prior import compute_logprior, get_logconst
    >>> tmp = tempfile.TemporaryDirectory()
    >>> dirname = os.path.join(tmp.name, "")
    >>> with contextlib.redirect_stdout(io.StringIO()):
    ...     esr.generation.duplicate_checker.main("core_maths", 4, fn_dir=dirname)
    ...     get_logconst(4, dirname)
-   ...     compute_logprior(4, 2, basis_functions, dirname, "data/PhysicsEquations.csv",
-   ...                      "data/NewPhysics.csv", input_delimiter=";",
+   ...     compute_logprior(4, 2, basis_functions, dirname,
+   ...                      data_path("PhysicsEquations.csv"), "NewPhysics.csv",
+   ...                      input_delimiter=";",
    ...                      tune_discounts="single")
    >>> for f in sorted(os.listdir(dirname + "compl_4")):
    ...     if f.startswith("kn"):

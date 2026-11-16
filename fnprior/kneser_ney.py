@@ -49,7 +49,7 @@ class KneserNey:
     ):
         """Interpolated Kneser-Ney model for predicting the final element of a tuple
         given the elements which precede it. This is a drop-in alternative to
-        katz.back_off.BackOff (same get_pbo interface). With one discount per order this
+        fnprior.back_off.BackOff (same get_pbo interface). With one discount per order this
         is interpolated Kneser-Ney with absolute discounting; with count-dependent
         discounts (D1, D2, D3+, e.g. the Chen-Goodman estimates 'mkn') it is modified
         Kneser-Ney.
@@ -228,7 +228,7 @@ class KneserNey:
     def get_pbo(self, wnew, old_phrase):
         """
         Compute the probability for word wnew given the preceding set of words old_phrase.
-        Alias of prob, so that this class can replace katz.back_off.BackOff.
+        Alias of prob, so that this class can replace fnprior.back_off.BackOff.
 
         Args:
             :wnew: The new word we wish to know the probability of obtaining
